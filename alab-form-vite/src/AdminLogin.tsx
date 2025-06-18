@@ -27,7 +27,8 @@ export const AdminLogin = () => {
             if (response.ok) {
                 const data = await response.json(); // Odbieramy odpowiedź z serwera
                 localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("userRole", data.role); // ZAPISUJEMY ROLĘ
+                localStorage.setItem("userRole", data.role);
+                localStorage.setItem("authToken", data.token);
                 navigate("/panel");
             } else {
                 const data = await response.json();

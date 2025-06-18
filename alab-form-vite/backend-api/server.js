@@ -1,16 +1,22 @@
+// Plik: backend-api/server.js - WERSJA FINALNA Z ZABEZPIECZENIEM TOKENAMI JWT
+
+// --- INICJALIZACJA ---
 require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 const CryptoJS = require('crypto-js');
-const bcrypt = require('bcryptjs'); // Upewnij się, że ten import jest na górze pliku
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken'); // Biblioteka do tokenów
 
 const app = express();
 const port = process.env.PORT || 3001;
 
+// --- KLUCZE I KONFIGURACJA ---
 const ENCRYPTION_KEY = process.env.FORM_ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY) {
-    throw new Error("Klucz 'FORM_ENCRYPTION_KEY' nie jest zdefiniowany w pliku .env");
+const JWT_SECRET = process.env.JWT_SECRET; // Nowy sekret dla tokenów
+if (!ENCRYPTION_KEY || !JWT_SECRET) {
+    throw new Error("Klucze FORM_ENCRYPTION_KEY i JWT_SECRET muszą być zdefiniowane w pliku .env");
 }
 
 const pool = mysql.createPool({
@@ -21,48 +27,64 @@ const pool = mysql.createPool({
     port: process.env.DATABASE_PORT || 3306,
 });
 
+// --- MIDDLEWARES ---
 app.use(cors());
 app.use(express.json());
 
+// --- NOWY MIDDLEWARE DO WERYFIKACJI TOKENU ---
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Oczekujemy formatu "Bearer TOKEN"
+
+    if (token == null) {
+        return res.status(401).json({ message: 'Brak autoryzacji - token nie został dostarczony.' });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ message: 'Brak dostępu - token jest nieprawidłowy lub nieważny.' });
+        }
+        req.user = user; // Zapisujemy dane z tokenu (np. id, rola) w obiekcie zapytania
+        next(); // Przechodzimy dalej
+    });
+};
+
+
+// --- ENDPOINTY API ---
+
+// Endpoint do zapisu formularza (publiczny, nie wymaga tokenu)
 app.post('/api/forms', async (req, res) => {
     try {
         const formData = req.body;
         const { name, surname, pesel, ...dataToEncrypt } = formData;
-
         const encryptedData = CryptoJS.AES.encrypt(JSON.stringify(dataToEncrypt), ENCRYPTION_KEY).toString();
-
-        const query = `
-            INSERT INTO form_submissions (name, surname, pesel, encrypted_data) 
-            VALUES (?, ?, ?, ?)
-        `;
+        const query = `INSERT INTO form_submissions (name, surname, pesel, encrypted_data) VALUES (?, ?, ?, ?)`;
         const values = [name, surname, pesel, encryptedData];
-        const [result] = await pool.query(query, values);
-
-        res.status(201).json({ message: 'Formularz zapisany!', insertedId: result.insertId });
+        await pool.query(query, values);
+        res.status(201).json({ message: 'Formularz zapisany!' });
     } catch (error) {
         console.error('Błąd przy zapisie do bazy:', error);
         res.status(500).json({ message: 'Wystąpił błąd serwera' });
     }
 });
 
+// Endpoint logowania (publiczny, bo tutaj generujemy token)
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Nazwa użytkownika i hasło są wymagane.' });
-    }
+    if (!username || !password) return res.status(400).json({ message: 'Nazwa użytkownika i hasło są wymagane.' });
     try {
         const query = 'SELECT * FROM users WHERE username = ?';
         const [rows] = await pool.query(query, [username]);
-        if (rows.length === 0) {
-            return res.status(401).json({ message: 'Błędne dane logowania.' });
-        }
+        if (rows.length === 0) return res.status(401).json({ message: 'Błędne dane logowania.' });
+
         const user = rows[0];
         const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Błędne dane logowania.' });
-        }
-        // ZMIANA TUTAJ: Wysyłamy rolę użytkownika do frontendu
-        res.status(200).json({ message: 'Logowanie pomyślne!', role: user.role });
+        if (!isMatch) return res.status(401).json({ message: 'Błędne dane logowania.' });
+
+        const userPayload = { id: user.id, username: user.username, role: user.role };
+        const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' });
+
+        res.status(200).json({ message: 'Logowanie pomyślne!', token: accessToken, role: user.role });
     } catch (error) {
         console.error('Błąd logowania:', error);
         res.status(500).json({ message: 'Wystąpił błąd serwera.' });
@@ -70,7 +92,10 @@ app.post('/api/login', async (req, res) => {
 });
 
 
-app.get('/api/forms', async (req, res) => {
+// --- ENDPOINTY CHRONIONE (wymagają tokenu) ---
+
+// Pobieranie wszystkich zgłoszeń
+app.get('/api/forms', authenticateToken, async (req, res) => {
     try {
         const query = 'SELECT id, name, surname, pesel, encrypted_data, created_at FROM form_submissions ORDER BY created_at DESC';
         const [rows] = await pool.query(query);
@@ -81,32 +106,9 @@ app.get('/api/forms', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Serwer API działa na http://localhost:${port}`);
-});
-
-app.post('/api/users', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Nazwa użytkownika i hasło są wymagane.' });
-    }
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const query = 'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)';
-        await pool.query(query, [username, hashedPassword, 'admin']);
-
-        res.status(201).json({ message: `Użytkownik ${username} został pomyślnie utworzony.` });
-    } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ message: 'Użytkownik o tej nazwie już istnieje.' });
-        }
-        console.error('Błąd przy tworzeniu użytkownika:', error);
-        res.status(500).json({ message: 'Wystąpił błąd serwera.' });
-    }
-});
-
-app.get('/api/users', async (req, res) => {
+// Pobieranie listy użytkowników
+app.get('/api/users', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Brak uprawnień.' });
     try {
         const query = 'SELECT id, username, role FROM users ORDER BY id';
         const [users] = await pool.query(query);
@@ -117,39 +119,42 @@ app.get('/api/users', async (req, res) => {
     }
 });
 
-
-app.delete('/api/users/:id', async (req, res) => {
-    // Pobieramy ID użytkownika z parametrów URL
-    const { id } = req.params;
-
-    // Konwertujemy ID na liczbę
-    const userIdToDelete = parseInt(id, 10);
-
-    if (isNaN(userIdToDelete)) {
-        return res.status(400).json({ message: 'Nieprawidłowe ID użytkownika.' });
-    }
-
+// Tworzenie nowego użytkownika
+app.post('/api/users', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Brak uprawnień.' });
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ message: 'Nazwa użytkownika i hasło są wymagane.' });
     try {
-        // Zabezpieczenie: Sprawdź, czy użytkownik nie próbuje usunąć samego siebie
-        // W bardziej złożonej aplikacji sprawdzalibyśmy ID zalogowanego użytkownika z tokenu JWT
-        // Tutaj dla uproszczenia, jeśli ID do usunięcia odpowiada np. ID superadmina (załóżmy, że to 1), odrzucamy.
-        // Możesz dostosować tę logikę.
-        if (userIdToDelete === 1) { // Załóżmy, że superadmin ma zawsze ID = 1
-            return res.status(403).json({ message: 'Nie można usunąć głównego superadministratora.' });
-        }
-
-        const query = 'DELETE FROM users WHERE id = ?';
-        const [result] = await pool.query(query, [userIdToDelete]);
-
-        // Sprawdzamy, czy jakikolwiek wiersz został usunięty
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym ID.' });
-        }
-
-        res.status(200).json({ message: 'Użytkownik został pomyślnie usunięty.' });
-
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const query = 'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)';
+        await pool.query(query, [username, hashedPassword, 'admin']);
+        res.status(201).json({ message: `Użytkownik ${username} został pomyślnie utworzony.` });
     } catch (error) {
-        console.error(`Błąd przy usuwaniu użytkownika o ID ${id}:`, error);
+        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Użytkownik o tej nazwie już istnieje.' });
+        console.error('Błąd przy tworzeniu użytkownika:', error);
         res.status(500).json({ message: 'Wystąpił błąd serwera.' });
     }
+});
+
+// Usuwanie użytkownika
+app.delete('/api/users/:id', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Brak uprawnień.' });
+    const userIdToDelete = parseInt(req.params.id, 10);
+    if (isNaN(userIdToDelete)) return res.status(400).json({ message: 'Nieprawidłowe ID użytkownika.' });
+    if (userIdToDelete === 1) return res.status(403).json({ message: 'Nie można usunąć głównego superadministratora.' });
+    try {
+        const query = 'DELETE FROM users WHERE id = ?';
+        const [result] = await pool.query(query, [userIdToDelete]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym ID.' });
+        res.status(200).json({ message: 'Użytkownik został pomyślnie usunięty.' });
+    } catch (error) {
+        console.error(`Błąd przy usuwaniu użytkownika o ID ${userIdToDelete}:`, error);
+        res.status(500).json({ message: 'Wystąpił błąd serwera.' });
+    }
+});
+
+
+// --- URUCHOMIENIE SERWERA ---
+app.listen(port, () => {
+    console.log(`Serwer API działa na http://localhost:${port}`);
 });

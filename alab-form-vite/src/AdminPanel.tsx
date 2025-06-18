@@ -129,8 +129,15 @@ export const AdminPanel = () => {
 
         const fetchAndDecryptForms = async () => {
             try {
+                const token = localStorage.getItem('authToken'); // Pobierz token
+                if (!token) throw new Error('Brak tokenu autoryzacyjnego.');
                 const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/forms`;
-                const response = await fetch(apiUrl);
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        // Dołącz nagłówek z tokenem
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 if (!response.ok) throw new Error('Błąd pobierania danych');
 
                 const encryptedForms = await response.json();
