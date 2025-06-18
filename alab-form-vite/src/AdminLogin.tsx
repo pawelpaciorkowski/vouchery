@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export const AdminLogin = () => {
+    // Upewnij się, że stany nazywają się 'username' i 'password'
     const [username, setUsername] = useState("");
-    const [password_hash, setPassword_hash] = useState("");
+    const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const navigate = useNavigate();
 
@@ -19,15 +20,16 @@ export const AdminLogin = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ username, password_hash }),
+                // POPRAWKA TUTAJ: Wysyłamy obiekt z kluczem 'password', a nie 'password_hash'
+                body: JSON.stringify({ username, password }),
             });
 
             if (response.ok) {
-                // Logowanie udane
-                localStorage.setItem("isLoggedIn", "true"); // Używamy tego samego klucza co w AdminPanel
+                const data = await response.json(); // Odbieramy odpowiedź z serwera
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("userRole", data.role); // ZAPISUJEMY ROLĘ
                 navigate("/panel");
             } else {
-                // Logowanie nieudane
                 const data = await response.json();
                 setError(data.message || 'Błędne dane logowania.');
             }
@@ -46,7 +48,7 @@ export const AdminLogin = () => {
                     <input
                         type="text"
                         className="w-full p-2 border rounded"
-                        placeholder="login"
+                        placeholder="superadmin"
                         value={username}
                         onChange={e => setUsername(e.target.value)}
                         required
@@ -58,14 +60,12 @@ export const AdminLogin = () => {
                         type="password"
                         className="w-full p-2 border rounded"
                         placeholder="Hasło"
-                        value={password_hash}
-                        onChange={e => setPassword_hash(e.target.value)}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
                         required
                     />
                 </div>
-
                 {error && <div className="text-red-500 mb-4 text-center">{error}</div>}
-
                 <button
                     type="submit"
                     className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700"
@@ -76,3 +76,5 @@ export const AdminLogin = () => {
         </div>
     );
 };
+
+export default AdminLogin;

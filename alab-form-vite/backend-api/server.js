@@ -52,38 +52,28 @@ app.post('/api/forms', async (req, res) => {
     }
 });
 
-// --- ENDPOINT DO LOGOWANIA ---
+// --- ENDPOINT DO LOGOWANIA (ZAKTUALIZOWANY O ZWRACANIE ROLI) ---
 app.post('/api/login', async (req, res) => {
-    // 1. Zawsze odbieramy 'password' z formularza
     const { username, password } = req.body;
-
-    // 2. Sprawdzamy, czy pole 'password' dotarło
-    if (!username || !password_hash) {
+    if (!username || !password) {
         return res.status(400).json({ message: 'Nazwa użytkownika i hasło są wymagane.' });
     }
-
     try {
         const query = 'SELECT * FROM users WHERE username = ?';
         const [rows] = await pool.query(query, [username]);
-
         if (rows.length === 0) {
             return res.status(401).json({ message: 'Błędne dane logowania.' });
         }
-
         const user = rows[0];
-
-        // 3. Porównujemy 'password' z formularza z 'user.password_hash' z bazy danych
         const isMatch = await bcrypt.compare(password, user.password_hash);
-
         if (!isMatch) {
             return res.status(401).json({ message: 'Błędne dane logowania.' });
         }
-
-        res.status(200).json({ message: 'Logowanie pomyślne!' });
-
+        // ZMIANA TUTAJ: Wysyłamy rolę użytkownika do frontendu
+        res.status(200).json({ message: 'Logowanie pomyślne!', role: user.role });
     } catch (error) {
         console.error('Błąd logowania:', error);
-        res.status(500).json({ message: 'Wystąpił błąd serwera' });
+        res.status(500).json({ message: 'Wystąpił błąd serwera.' });
     }
 });
 
@@ -102,4 +92,28 @@ app.get('/api/forms', async (req, res) => {
 
 app.listen(port, () => {
     console.log(`Serwer API działa na http://localhost:${port}`);
+});
+
+// --- NOWY ENDPOINT DO TWORZENIA UŻYTKOWNIKÓW (DLA SUPERADMINA) ---
+app.post('/api/users', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ message: 'Nazwa użytkownika i hasło są wymagane.' });
+    }
+    try {
+        // Hashowanie hasła nowego użytkownika
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Domyślnie każdy nowy użytkownik dostaje rolę 'admin'
+        const query = 'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)';
+        await pool.query(query, [username, hashedPassword, 'admin']);
+
+        res.status(201).json({ message: `Użytkownik ${username} został pomyślnie utworzony.` });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: 'Użytkownik o tej nazwie już istnieje.' });
+        }
+        console.error('Błąd przy tworzeniu użytkownika:', error);
+        res.status(500).json({ message: 'Wystąpił błąd serwera.' });
+    }
 });

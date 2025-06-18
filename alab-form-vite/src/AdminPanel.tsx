@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import CryptoJS from 'crypto-js';
-import { Navigate } from 'react-router-dom'; // 1. Importujemy komponent Navigate
+import { Navigate } from 'react-router-dom';
+import { AddUserForm } from './AddUserForm';
 
 // Typy, które mogą być potrzebne
 interface FormData {
@@ -19,12 +20,15 @@ export const AdminPanel = () => {
     const [forms, setForms] = useState<FormData[]>([]);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [filter, setFilter] = useState('');
-    const [isLoading, setIsLoading] = useState(true); // Dodajemy stan ładowania
+    const [isLoading, setIsLoading] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     useEffect(() => {
         const loggedIn = localStorage.getItem("isLoggedIn") === "true";
+        const role = localStorage.getItem("userRole"); // Odczytaj rolę
         setIsLoggedIn(loggedIn);
-        setIsLoading(false); // Kończymy ładowanie po sprawdzeniu statusu logowania
+        setUserRole(role);
+        setIsLoading(false);
     }, []);
 
     useEffect(() => {
@@ -133,6 +137,7 @@ export const AdminPanel = () => {
                     </tbody>
                 </table>
             </div>
+            {userRole === 'superadmin' && <AddUserForm />}
         </div>
     );
 };
