@@ -1,103 +1,119 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import CryptoJS from "crypto-js";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 
-// Ten sam klucz co w formularzu
 const SECRET_KEY = "MocnoTajnyKlucz!";
+
+// Typ danych - bez zmian
 export type FormData = {
-    identityMethod: "pesel" | "birthDoc";
-    docNumber: string;
     submissionType: "employee" | "family";
+    // Pracownik
     name: string;
     surname: string;
+    gender: string;
     pesel: string;
     birthDate: string;
     email: string;
     phone: string;
+    // Adres
     street: string;
     houseNumber: string;
-    flatNumber: string;
+    flatNumber?: string;
     zip: string;
+    postOffice: string;
     city: string;
+    country: string;
     region: string;
-    // rodzina:
-    familyIdentityMethod: "pesel" | "birthDoc";
-    familyDocNumber: string;
-    familyName: string;
-    familySurname: string;
-    familyPesel: string;
-    familyBirthDate: string;
+    // Członek rodziny
+    familyName?: string;
+    familySurname?: string;
+    familyGender?: string;
+    familyPesel?: string;
+    familyIdentityMethod?: "pesel" | "birthDoc";
+    familyBirthDate?: string;
+    familyDocumentType?: 'dowod' | 'paszport';
+    familyDocNumber?: string;
+    familyIssuingCountry?: string;
+    // Zgody
     zgodaDanePrawdziwe: boolean;
     zgodaPrzetwarzanie: boolean;
     zgodaZapoznanie: boolean;
     createdAt?: string;
 };
 
+// --- ZAKTUALIZOWANA FUNKCJA DO TRANSFORMACJI DANYCH ---
+const transformDataForExport = (data: FormData[]) => {
+    const getGenderAbbreviation = (gender: string | undefined): 'K' | 'M' | '' => {
+        if (!gender) return '';
+        if (gender.toLowerCase() === 'kobieta') return 'K';
+        if (gender.toLowerCase() === 'mezczyzna') return 'M';
+        return '';
+    };
 
-const COLUMNS = [
-    "identityMethod",
-    "docNumber",
-    "submissionType",
-    "name",
-    "surname",
-    "pesel",
-    "birthDate",
-    "email",
-    "phone",
-    "street",
-    "houseNumber",
-    "flatNumber",
-    "zip",
-    "city",
-    "region",
-    "familyIdentityMethod",
-    "familyDocNumber",
-    "familyName",
-    "familySurname",
-    "familyPesel",
-    "familyBirthDate",
-    "zgodaDanePrawdziwe",
-    "zgodaPrzetwarzanie",
-    "zgodaZapoznanie",
-    "createdAt",
-] as const;
+    return data.map(form => {
+        const familyDocType = form.familyDocumentType === 'dowod' ? 'Dowód osobisty' : 'Paszport';
 
-const COLUMN_LABELS: Record<string, string> = {
-    identityMethod: "Sposób identyfikacji",
-    docNumber: "Nr dokumentu",
-    submissionType: "Typ zgłoszenia",
-    name: "Imię",
-    surname: "Nazwisko",
-    pesel: "PESEL",
-    birthDate: "Data urodzenia",
-    email: "Email",
-    phone: "Telefon",
-    street: "Ulica",
-    houseNumber: "Nr domu",
-    flatNumber: "Nr mieszkania",
-    zip: "Kod pocztowy",
-    city: "Miasto",
-    region: "Województwo",
-    familyIdentityMethod: "Sposób identyfikacji członka rodziny",
-    familyDocNumber: "Nr dokumentu członka rodziny",
-    familyName: "Imię członka rodziny",
-    familySurname: "Nazwisko członka rodziny",
-    familyPesel: "PESEL członka rodziny",
-    familyBirthDate: "Data urodzenia członka rodziny",
-    zgodaDanePrawdziwe: "Zgoda na prawdziwość danych",
-    zgodaPrzetwarzanie: "Zgoda na przetwarzanie danych osobowych",
-    zgodaZapoznanie: "Zgoda na zapoznanie się z procedurą",
-    createdAt: "Data utworzenia formularza"
+        const record: Record<string, any> = {
+            "Imię pracownika": form.name,
+            "Nazwisko pracownika": form.surname,
+            "Płeć pracownika": getGenderAbbreviation(form.gender),
+            "PESEL pracownika": form.pesel,
+            "Email": form.email,
+            "Nr telefonu": form.phone,
+            "Adres": `${form.street} ${form.houseNumber}${form.flatNumber ? `/${form.flatNumber}` : ''}, ${form.zip} ${form.postOffice}`,
+            "Ulica": form.street,
+            "Numer domu": form.houseNumber,
+            "Numer mieszkania": form.flatNumber || "",
+            "Kod-pocztowy": form.zip,
+            "Poczta": form.postOffice,
+            "Miasto": form.city,
+            "Województwo": form.region,
+            "Kraj": form.country,
+            "Typ dokumentu pracownika": 'PESEL',
+            "Nr dokumentu pracownika": form.pesel,
+            "Kraj wydający dokument pracownika": 'Polska',
+        };
+
+        if (form.submissionType === 'family') {
+            record["Imię członka rodziny"] = form.familyName;
+            record["Nazwisko członka rodziny"] = form.familySurname;
+            record["Płeć członka rodziny"] = getGenderAbbreviation(form.familyGender);
+            record["PESEL członka rodziny"] = form.familyPesel;
+            // Data urodzenia już jest w poprawnym formacie
+            record["Data urodzenia członka rodziny"] = form.familyIdentityMethod === 'pesel' ? getBirthDateFromPesel(form.familyPesel || '') : form.familyBirthDate;
+            record["Typ dokumentu członka rodziny"] = form.familyIdentityMethod === 'pesel' ? 'PESEL' : familyDocType;
+            record["Nr dokumentu członka rodziny"] = form.familyIdentityMethod === 'pesel' ? form.familyPesel : form.familyDocNumber;
+            record["Kraj wydający dokument członka rodziny"] = form.familyIdentityMethod === 'pesel' ? 'Polska' : form.familyIssuingCountry;
+        }
+
+        // --- ZMIANA FORMATU DATY ZGŁOSZENIA ---
+        record["Data zgłoszenia"] = form.createdAt ? form.createdAt.substring(0, 10) : "-";
+
+        return record;
+    });
 };
+
+function getBirthDateFromPesel(pesel: string): string | null {
+    if (!/^\d{11}$/.test(pesel)) return null;
+    let year = parseInt(pesel.substring(0, 2), 10);
+    let month = parseInt(pesel.substring(2, 4), 10);
+    const day = parseInt(pesel.substring(4, 6), 10);
+    if (month > 80) { year += 1800; month -= 80; }
+    else if (month > 60) { year += 2200; month -= 60; }
+    else if (month > 40) { year += 2100; month -= 40; }
+    else if (month > 20) { year += 2000; month -= 20; }
+    else { year += 1900; }
+    return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+}
 
 
 export const AdminPanel = () => {
     const navigate = useNavigate();
-    const [typeFilter, setTypeFilter] = useState<"" | "employee" | "family">("");
     const [forms, setForms] = useState<FormData[]>([]);
     const [dateFilter, setDateFilter] = useState<string>("");
-
+    const [typeFilter, setTypeFilter] = useState<"" | "employee" | "family">("");
 
     useEffect(() => {
         if (localStorage.getItem("admin-logged-in") !== "1") {
@@ -105,10 +121,6 @@ export const AdminPanel = () => {
         }
     }, [navigate]);
 
-
-
-
-    // Odszyfruj i wczytaj wszystkie formularze przy starcie
     useEffect(() => {
         const stored = JSON.parse(localStorage.getItem("encryptedForms") || "[]");
         const decrypted = stored.map((cipher: string) => {
@@ -117,121 +129,96 @@ export const AdminPanel = () => {
                 return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
             } catch (error) {
                 console.error("Błąd odszyfrowania:", error);
-                return { error: "Nie udało się odszyfrować", cipher };
+                return null;
             }
-        });
+        }).filter((item: FormData | null): item is FormData => item !== null);
         setForms(decrypted);
     }, []);
 
-    // Generowanie pliku Excel
     const handleExport = () => {
-        const ws = XLSX.utils.json_to_sheet(filteredForms);
+        const dataToExport = transformDataForExport(filteredForms);
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Formularze");
-        XLSX.writeFile(wb, "formularze.xlsx");
+        XLSX.writeFile(wb, "raport_formularzy.xlsx");
     };
-
 
     const filteredForms = forms
         .filter(f => dateFilter ? (f.createdAt && f.createdAt.startsWith(dateFilter)) : true)
         .filter(f => typeFilter ? f.submissionType === typeFilter : true);
 
-
+    const tableColumns = [
+        { key: 'name', label: 'Imię' },
+        { key: 'surname', label: 'Nazwisko' },
+        { key: 'gender', label: 'Płeć' },
+        { key: 'pesel', label: 'PESEL' },
+        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Telefon' },
+        { key: 'city', label: 'Miasto' },
+        { key: 'submissionType', label: 'Typ zgłoszenia' },
+        { key: 'familyName', label: 'Imię czł. rodziny' },
+        { key: 'familySurname', label: 'Nazwisko czł. rodziny' },
+        { key: 'createdAt', label: 'Data zgłoszenia' },
+    ];
 
     return (
-        <div className="p-8 min-w-0 w-full">
-
+        <div className="p-8 w-full">
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold text-center flex-1">
-                    Panel administratora
-                </h1>
+                <h1 className="text-2xl font-bold">Panel administratora</h1>
                 <button
-                    onClick={() => {
-                        localStorage.removeItem("admin-logged-in");
-                        navigate("/admin");
-                    }}
-                    className="ml-4 px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700 font-semibold shadow hover:bg-gray-200 transition"
-                    title="Wyloguj się"
+                    onClick={() => { localStorage.removeItem("admin-logged-in"); navigate("/admin"); }}
+                    className="ml-4 px-4 py-2 bg-gray-100 border rounded-lg"
                 >
                     Wyloguj
-                    <svg className="inline w-5 h-5 ml-2" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v1" /></svg>
                 </button>
             </div>
 
-            <button
-                className="mb-6 px-6 py-2 bg-blue-600 text-white rounded-lg shadow font-semibold hover:bg-blue-700 transition"
-                onClick={handleExport}
-            >
-                Pobierz Excel (XLSX)
-            </button>
-            <div className="overflow-x-auto">
-                <div className="mb-4 flex items-center gap-2 flex-wrap">
-                    <label className="font-semibold">Filtruj po dacie:</label>
-                    <input
-                        type="date"
-                        value={dateFilter}
-                        onChange={e => setDateFilter(e.target.value)}
-                        className="border px-2 py-1 rounded"
-                    />
-                    <button
-                        type="button"
-                        onClick={() => setDateFilter("")}
-                        className="ml-2 px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg transition hover:bg-blue-100 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm active:bg-blue-200 select-none"
-                    >
-                        Wyczyść
-                    </button>
-                    {/* NOWOŚĆ: filtr typu */}
-                    <label className="font-semibold ml-4">Filtruj po typie zgłoszenia:</label>
-                    <select
-                        value={typeFilter}
-                        onChange={e => setTypeFilter(e.target.value as "" | "employee" | "family")}
-                        className="border px-2 py-1 rounded"
-                    >
+            <div className="mb-6 flex gap-4 items-center flex-wrap">
+                <button className="px-6 py-2 bg-blue-600 text-white rounded-lg shadow font-semibold" onClick={handleExport}>
+                    Pobierz raport (Excel)
+                </button>
+                <div>
+                    <label className="font-semibold mr-2">Filtruj po dacie:</label>
+                    <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="border px-2 py-1 rounded" />
+                    <button onClick={() => setDateFilter("")} className="ml-2 px-3 py-1 text-sm">Wyczyść</button>
+                </div>
+                <div>
+                    <label className="font-semibold mr-2">Filtruj po typie:</label>
+                    <select value={typeFilter} onChange={e => setTypeFilter(e.target.value as any)} className="border px-2 py-1 rounded">
                         <option value="">Wszystkie</option>
                         <option value="employee">Pracownik</option>
                         <option value="family">Członek rodziny</option>
                     </select>
-                    <button
-                        type="button"
-                        onClick={() => setTypeFilter("")}
-                        className="ml-2 px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg transition hover:bg-blue-100 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm active:bg-blue-200 select-none"
-                    >
-                        Wyczyść
-                    </button>
+                    <button onClick={() => setTypeFilter("")} className="ml-2 px-3 py-1 text-sm">Wyczyść</button>
                 </div>
+            </div>
 
-                <table className="w-full text-sm border">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse border">
                     <thead>
-                        <tr>
-                            {COLUMNS.map((key) => (
-                                <th key={key} className="border px-2 py-1 bg-gray-100 font-bold">
-                                    {COLUMN_LABELS[key] || key}
-                                </th>
+                        <tr className="bg-gray-100">
+                            {tableColumns.map(({ key, label }) => (
+                                <th key={key} className="border px-2 py-2 font-bold text-left">{label}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
                         {filteredForms.map((form, i) => (
-
-                            <tr key={i}>
-                                {COLUMNS.map((key, j) => (
-                                    <td key={j} className="border px-2 py-1">
+                            <tr key={i} className="hover:bg-gray-50">
+                                {tableColumns.map(({ key }) => (
+                                    <td key={key} className="border px-2 py-1">
+                                        {/* --- ZMIANA FORMATU DATY W TABELI --- */}
                                         {key === "createdAt"
-                                            ? form.createdAt
-                                                ? new Date(form.createdAt).toLocaleString("pl-PL", {
-                                                    dateStyle: "short",
-                                                    timeStyle: "short",
-                                                })
-                                                : "-"
-                                            : String(form[key as keyof typeof form] ?? "")}
+                                            ? form.createdAt ? form.createdAt.substring(0, 10) : "-"
+                                            : key === "submissionType"
+                                                ? (form.submissionType === 'employee' ? 'Pracownik' : 'Członek rodziny')
+                                                : String(form[key as keyof FormData] ?? "")}
                                     </td>
                                 ))}
                             </tr>
                         ))}
                     </tbody>
                 </table>
-
-
             </div>
             {!forms.length && <div className="mt-6 text-center text-gray-500">Brak danych</div>}
         </div>
