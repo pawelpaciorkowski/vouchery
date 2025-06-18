@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// w pliku: alab-form-vite/src/AdminPanel.tsx
 import React, { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import CryptoJS from 'crypto-js';
+import { Navigate } from 'react-router-dom'; // 1. Importujemy komponent Navigate
 
-// Definicja typów (można przenieść do osobnego pliku)
+// Typy, które mogą być potrzebne
 interface FormData {
     id: number;
     name: string;
@@ -14,22 +14,22 @@ interface FormData {
 }
 
 export const AdminPanel = () => {
-    // PRZENIESIONE DO ŚRODKA KOMPONENTU
     const DECRYPTION_KEY = import.meta.env.VITE_DECRYPTION_KEY;
 
     const [forms, setForms] = useState<FormData[]>([]);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [filter, setFilter] = useState('');
+    const [isLoading, setIsLoading] = useState(true); // Dodajemy stan ładowania
 
     useEffect(() => {
         const loggedIn = localStorage.getItem("isLoggedIn") === "true";
         setIsLoggedIn(loggedIn);
+        setIsLoading(false); // Kończymy ładowanie po sprawdzeniu statusu logowania
     }, []);
 
     useEffect(() => {
         if (!isLoggedIn) return;
 
-        // Sprawdzamy klucz dopiero, gdy jest potrzebny
         if (!DECRYPTION_KEY) {
             console.error("Klucz VITE_DECRYPTION_KEY nie został ustawiony w pliku .env frontendu!");
             return;
@@ -37,7 +37,8 @@ export const AdminPanel = () => {
 
         const fetchAndDecryptForms = async () => {
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/forms`);
+                const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/forms`;
+                const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error('Błąd pobierania danych');
 
                 const encryptedForms = await response.json();
@@ -45,7 +46,7 @@ export const AdminPanel = () => {
                 const decryptedForms = encryptedForms.map((form: any) => {
                     const bytes = CryptoJS.AES.decrypt(form.encrypted_data, DECRYPTION_KEY);
                     const decryptedDataString = bytes.toString(CryptoJS.enc.Utf8);
-                    const decryptedAdditionalData = JSON.parse(decryptedDataString);
+                    const decryptedAdditionalData = decryptedDataString ? JSON.parse(decryptedDataString) : {};
 
                     return {
                         id: form.id,
@@ -65,7 +66,7 @@ export const AdminPanel = () => {
         };
 
         fetchAndDecryptForms();
-    }, [isLoggedIn, DECRYPTION_KEY]); // Dodano DECRYPTION_KEY do tablicy zależności
+    }, [isLoggedIn, DECRYPTION_KEY]);
 
     const exportToExcel = () => {
         const worksheet = XLSX.utils.json_to_sheet(forms);
@@ -80,9 +81,13 @@ export const AdminPanel = () => {
         (form.pesel && form.pesel.includes(filter))
     );
 
+    if (isLoading) {
+        return <div>Ładowanie...</div>; // Ekran ładowania na czas sprawdzania logowania
+    }
+
+    // 2. Jeśli użytkownik nie jest zalogowany, przekierowujemy go na stronę /login
     if (!isLoggedIn) {
-        // Zamiast AdminLogin, który nie jest zdefiniowany, prosta wiadomość
-        return <div className="text-center p-8">Proszę się zalogować, aby uzyskać dostęp. Przejdź do <a href="/login" className="text-blue-600">strony logowania</a>.</div>;
+        return <Navigate to="/login" replace />;
     }
 
     return (

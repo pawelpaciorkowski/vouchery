@@ -1,133 +1,78 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// w pliku: alab-form-vite/src/AdminPanel.tsx
-import React, { useEffect, useState } from 'react';
-import * as XLSX from 'xlsx';
-import CryptoJS from 'crypto-js'; // Upewnij się, że ten import istnieje
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-// Typy, które mogą być potrzebne (dostosuj w razie potrzeby)
-interface FormData {
-    id: number;
-    name: string;
-    surname: string;
-    pesel: string;
-    [key: string]: any; // Pozwala na inne, dynamiczne pola
-}
+export const AdminLogin = () => {
+    const [username, setUsername] = useState("");
+    const [password_hash, setPassword_hash] = useState("");
+    const [error, setError] = useState("");
+    const navigate = useNavigate();
 
-// Klucz do deszyfrowania pobieramy ze zmiennych środowiskowych Vite
-const DECRYPTION_KEY = import.meta.env.VITE_DECRYPTION_KEY;
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
 
-if (!DECRYPTION_KEY) {
-    console.error("Klucz VITE_DECRYPTION_KEY nie został ustawiony w pliku .env frontendu!");
-}
+        try {
+            const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/login`;
 
-export const AdminPanel = () => {
-    const [forms, setForms] = useState<FormData[]>([]);
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [filter, setFilter] = useState('');
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password_hash }),
+            });
 
-    useEffect(() => {
-        const loggedIn = localStorage.getItem("isLoggedIn") === "true";
-        setIsLoggedIn(loggedIn);
-    }, []);
-
-    useEffect(() => {
-        if (!isLoggedIn || !DECRYPTION_KEY) return;
-
-        const fetchAndDecryptForms = async () => {
-            try {
-                // 1. Pobieramy dane z serwera (częściowo zaszyfrowane)
-                const response = await fetch('http://localhost:3001/api/forms');
-                if (!response.ok) throw new Error('Błąd pobierania danych');
-
-                const encryptedForms = await response.json();
-
-                // 2. Rozszyfrowujemy dane po stronie klienta
-                const decryptedForms = encryptedForms.map((form: any) => {
-                    const bytes = CryptoJS.AES.decrypt(form.encrypted_data, DECRYPTION_KEY);
-                    const decryptedDataString = bytes.toString(CryptoJS.enc.Utf8);
-                    const decryptedAdditionalData = JSON.parse(decryptedDataString);
-
-                    // 3. Łączymy dane jawne z rozszyfrowanymi, tworząc pełny obiekt
-                    return {
-                        id: form.id,
-                        name: form.name,
-                        surname: form.surname,
-                        pesel: form.pesel,
-                        createdAt: form.created_at,
-                        ...decryptedAdditionalData,
-                    };
-                });
-
-                setForms(decryptedForms);
-
-            } catch (error) {
-                console.error("Nie udało się pobrać lub rozszyfrować formularzy:", error);
+            if (response.ok) {
+                // Logowanie udane
+                localStorage.setItem("isLoggedIn", "true"); // Używamy tego samego klucza co w AdminPanel
+                navigate("/panel");
+            } else {
+                // Logowanie nieudane
+                const data = await response.json();
+                setError(data.message || 'Błędne dane logowania.');
             }
-        };
-
-        fetchAndDecryptForms();
-    }, [isLoggedIn]);
-
-    const exportToExcel = () => {
-        const worksheet = XLSX.utils.json_to_sheet(forms);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Zgłoszenia');
-        XLSX.writeFile(workbook, 'dane_zgloszeniowe.xlsx');
+        } catch (err) {
+            setError('Nie można połączyć się z serwerem.');
+            console.error(err);
+        }
     };
 
-    const filteredForms = forms.filter(form =>
-        form.name.toLowerCase().includes(filter.toLowerCase()) ||
-        form.surname.toLowerCase().includes(filter.toLowerCase()) ||
-        form.pesel.includes(filter)
-    );
-
-    if (!isLoggedIn) {
-        return <div className="text-center p-8">Proszę się zalogować, aby uzyskać dostęp.</div>;
-    }
-
     return (
-        <div className="container mx-auto p-4">
-            <h2 className="text-2xl font-bold mb-4">Panel Administratora</h2>
-            <div className="mb-4 flex gap-4">
-                <input
-                    type="text"
-                    placeholder="Filtruj po imieniu, nazwisku, PESEL..."
-                    className="p-2 border rounded w-full"
-                    value={filter}
-                    onChange={e => setFilter(e.target.value)}
-                />
-                <button onClick={exportToExcel} className="bg-green-500 text-white p-2 rounded whitespace-nowrap">
-                    Eksportuj do Excel
+        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+            <form onSubmit={handleLogin} className="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
+                <h2 className="text-2xl font-bold mb-6 text-center">Logowanie do panelu</h2>
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nazwa użytkownika</label>
+                    <input
+                        type="text"
+                        className="w-full p-2 border rounded"
+                        placeholder="login"
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        required
+                    />
+                </div>
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hasło</label>
+                    <input
+                        type="password"
+                        className="w-full p-2 border rounded"
+                        placeholder="Hasło"
+                        value={password_hash}
+                        onChange={e => setPassword_hash(e.target.value)}
+                        required
+                    />
+                </div>
+
+                {error && <div className="text-red-500 mb-4 text-center">{error}</div>}
+
+                <button
+                    type="submit"
+                    className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700"
+                >
+                    Zaloguj
                 </button>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border">
-                    <thead>
-                        <tr>
-                            <th className="py-2 px-4 border">ID</th>
-                            <th className="py-2 px-4 border">Imię</th>
-                            <th className="py-2 px-4 border">Nazwisko</th>
-                            <th className="py-2 px-4 border">PESEL</th>
-                            <th className="py-2 px-4 border">Email</th>
-                            <th className="py-2 px-4 border">Telefon</th>
-                            <th className="py-2 px-4 border">Data Zgłoszenia</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredForms.map(form => (
-                            <tr key={form.id}>
-                                <td className="py-2 px-4 border">{form.id}</td>
-                                <td className="py-2 px-4 border">{form.name}</td>
-                                <td className="py-2 px-4 border">{form.surname}</td>
-                                <td className="py-2 px-4 border">{form.pesel}</td>
-                                <td className="py-2 px-4 border">{form.email}</td>
-                                <td className="py-2 px-4 border">{form.phone}</td>
-                                <td className="py-2 px-4 border">{new Date(form.createdAt).toLocaleString()}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            </form>
         </div>
     );
 };
