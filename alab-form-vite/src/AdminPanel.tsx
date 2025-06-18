@@ -143,34 +143,23 @@ export const AdminPanel = () => {
                 const encryptedForms = await response.json();
                 const decryptedForms = encryptedForms.map((form: any) => {
                     try {
-                        // Deszyfruj dane, tak jak robiłeś to wcześniej
                         const bytes = CryptoJS.AES.decrypt(form.encrypted_data, DECRYPTION_KEY);
                         const decryptedDataString = bytes.toString(CryptoJS.enc.Utf8);
-                        const decryptedAdditionalData = decryptedDataString ? JSON.parse(decryptedDataString) : {};
+                        const decryptedAllData = decryptedDataString ? JSON.parse(decryptedDataString) : {};
 
-
+                        // POPRAWKA: Wszystkie dane pochodzą teraz z odszyfrowanego obiektu
                         return {
                             id: form.id,
-                            name: form.name,
-                            surname: form.surname,
-                            pesel: form.pesel,
                             createdAt: form.created_at,
-                            ...decryptedAdditionalData
+                            ...decryptedAllData
                         };
-
                     } catch (e) {
                         console.error(`Nie udało się przetworzyć rekordu ID: ${form.id}`, e);
-                        return {
-                            id: form.id,
-                            name: form.name,
-                            surname: form.surname,
-                            pesel: form.pesel,
-                            createdAt: form.created_at
-                        };
+                        return null; // Zwróć null w przypadku błędu
                     }
-                });
+                }).filter(Boolean); // Usuń wszystkie nulle z tablicy
 
-                setForms(decryptedForms);
+                setForms(decryptedForms as FormData[]);
             } catch (error) {
                 console.error("Nie udało się pobrać formularzy:", error);
             }

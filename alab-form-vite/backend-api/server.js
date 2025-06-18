@@ -53,20 +53,24 @@ const authenticateToken = (req, res, next) => {
 // --- ENDPOINTY API ---
 
 // Endpoint do zapisu formularza (publiczny, nie wymaga tokenu)
+// Zmień ten endpoint w pliku server.js
 app.post('/api/forms', async (req, res) => {
     try {
         const formData = req.body;
-        const { name, surname, pesel, ...dataToEncrypt } = formData;
-        const encryptedData = CryptoJS.AES.encrypt(JSON.stringify(dataToEncrypt), ENCRYPTION_KEY).toString();
-        const query = `INSERT INTO form_submissions (name, surname, pesel, encrypted_data) VALUES (?, ?, ?, ?)`;
-        const values = [name, surname, pesel, encryptedData];
-        await pool.query(query, values);
-        res.status(201).json({ message: 'Formularz zapisany!' });
+        // Szyfrujemy cały obiekt formData, bez wyciągania z niego pól
+        const encryptedData = CryptoJS.AES.encrypt(JSON.stringify(formData), ENCRYPTION_KEY).toString();
+
+        // Zapisujemy tylko zaszyfrowany blok danych
+        const query = `INSERT INTO form_submissions (encrypted_data) VALUES (?)`;
+        const [result] = await pool.query(query, [encryptedData]);
+
+        res.status(201).json({ message: 'Formularz zapisany!', insertedId: result.insertId });
     } catch (error) {
         console.error('Błąd przy zapisie do bazy:', error);
         res.status(500).json({ message: 'Wystąpił błąd serwera' });
     }
 });
+
 
 // Endpoint logowania (publiczny, bo tutaj generujemy token)
 app.post('/api/login', async (req, res) => {
@@ -94,10 +98,10 @@ app.post('/api/login', async (req, res) => {
 
 // --- ENDPOINTY CHRONIONE (wymagają tokenu) ---
 
-// Pobieranie wszystkich zgłoszeń
 app.get('/api/forms', authenticateToken, async (req, res) => {
     try {
-        const query = 'SELECT id, name, surname, pesel, encrypted_data, created_at FROM form_submissions ORDER BY created_at DESC';
+        // Pobieramy tylko ID, zaszyfrowane dane i datę
+        const query = 'SELECT id, encrypted_data, created_at FROM form_submissions ORDER BY created_at DESC';
         const [rows] = await pool.query(query);
         res.status(200).json(rows);
     } catch (error) {
@@ -106,7 +110,7 @@ app.get('/api/forms', authenticateToken, async (req, res) => {
     }
 });
 
-// Pobieranie listy użytkowników
+// Pobieranie listy użytkowników - teraz wymaga tokenu
 app.get('/api/users', authenticateToken, async (req, res) => {
     if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Brak uprawnień.' });
     try {
@@ -119,7 +123,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     }
 });
 
-// Tworzenie nowego użytkownika
+// Tworzenie nowego użytkownika - teraz wymaga tokenu
 app.post('/api/users', authenticateToken, async (req, res) => {
     if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Brak uprawnień.' });
     const { username, password } = req.body;
@@ -136,12 +140,12 @@ app.post('/api/users', authenticateToken, async (req, res) => {
     }
 });
 
-// Usuwanie użytkownika
+// Usuwanie użytkownika - teraz wymaga tokenu
 app.delete('/api/users/:id', authenticateToken, async (req, res) => {
     if (req.user.role !== 'superadmin') return res.status(403).json({ message: 'Brak uprawnień.' });
     const userIdToDelete = parseInt(req.params.id, 10);
     if (isNaN(userIdToDelete)) return res.status(400).json({ message: 'Nieprawidłowe ID użytkownika.' });
-    if (userIdToDelete === 1) return res.status(403).json({ message: 'Nie można usunąć głównego superadministratora.' });
+    if (userIdToDelete === req.user.id || userIdToDelete === 1) return res.status(403).json({ message: 'Nie można usunąć samego siebie lub głównego superadministratora.' });
     try {
         const query = 'DELETE FROM users WHERE id = ?';
         const [result] = await pool.query(query, [userIdToDelete]);

@@ -14,10 +14,22 @@ export const AddUserForm = () => {
         setIsError(false);
 
         try {
+            // 1. Pobieramy token z localStorage
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error("Brak tokenu autoryzacyjnego. Zaloguj się ponownie.");
+            }
+
             const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users`;
+
+            // 2. Wysyłamy zapytanie z poprawnymi nagłówkami
             const response = await fetch(apiUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Dołączamy token do nagłówka 'Authorization'
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ username, password }),
             });
 
