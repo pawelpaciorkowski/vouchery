@@ -1,10 +1,8 @@
-// backend-api/server.js
-
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') }); // <-- ZMODYFIKOWANA LINIA
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
-const CryptoJS = require('crypto-js'); // Import biblioteki do szyfrowania
+const CryptoJS = require('crypto-js');
 
 const app = express();
 const port = process.env.PORT || 3001;
