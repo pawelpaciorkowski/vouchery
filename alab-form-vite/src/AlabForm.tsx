@@ -270,25 +270,30 @@ export const AlabForm = () => {
                 <Formik
                     initialValues={initialValues}
                     validationSchema={validationSchema(type)}
-                    onSubmit={(values, { setSubmitting, resetForm }) => {
+                    onSubmit={async (values, { setSubmitting, resetForm }) => {
+                        setSubmitting(true);
                         try {
-                            const now = new Date().toISOString();
-                            const dataToSave = { ...values, createdAt: now };
+                            // Adres Twojego działającego serwera
+                            const response = await fetch('http://localhost:3000/api/forms', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(values), // Wysyłamy dane formularza jako JSON
+                            });
 
-                            const encryptedForms = JSON.parse(localStorage.getItem("encryptedForms") || "[]");
-                            const ciphertext = CryptoJS.AES.encrypt(JSON.stringify(dataToSave), SECRET_KEY).toString();
-                            encryptedForms.push(ciphertext);
-                            localStorage.setItem("encryptedForms", JSON.stringify(encryptedForms));
+                            if (!response.ok) {
+                                throw new Error('Odpowiedź serwera nie była pomyślna.');
+                            }
 
-                            setModalContent({ title: "Sukces!", message: "Formularz został pomyślnie zapisany." });
-
+                            setModalContent({ title: "Sukces!", message: "Formularz został pomyślnie wysłany." });
                             resetForm();
                             setType("employee");
                             setFamilyIdentityMethod("pesel");
 
                         } catch (error) {
-                            console.error("Błąd zapisu formularza:", error);
-                            setModalContent({ title: "Błąd", message: "Wystąpił błąd podczas zapisu formularza. Spróbuj ponownie." });
+                            console.error("Błąd podczas wysyłania formularza:", error);
+                            setModalContent({ title: "Błąd", message: "Wystąpił błąd podczas wysyłania formularza. Sprawdź konsolę serwera lub spróbuj ponownie." });
                         } finally {
                             setSubmitting(false);
                             setIsModalOpen(true);
