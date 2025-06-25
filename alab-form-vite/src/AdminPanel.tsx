@@ -1,5 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// Plik: src/AdminPanel.tsx
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import CryptoJS from 'crypto-js';
 import * as XLSX from 'xlsx';
@@ -11,7 +14,14 @@ import { DashboardActions } from './components/DashboardActions';
 import { SubmissionsTable } from './components/SubmissionsTable';
 import { Modal } from './components/Modal';
 
-// --- FUNKCJE POMOCNICZE ---
+// Definicja typu dla użytkownika - może być w types.ts, ale dla prostoty jest tutaj
+export interface User {
+    id: number;
+    username: string;
+    role: string;
+}
+
+// Funkcje pomocnicze (getBirthDateFromPesel, transformDataForExport) pozostają bez zmian
 function getBirthDateFromPesel(pesel: string | undefined): string {
     if (!pesel || !/^\d{11}$/.test(pesel)) return "";
     let year = parseInt(pesel.substring(0, 2), 10);
@@ -33,15 +43,10 @@ const transformDataForExport = (data: FormData[]) => {
         if (lowerGender === 'mezczyzna' || lowerGender === 'm') return 'M';
         return '';
     };
-
     return data.map(form => {
         const record: Record<string, any> = {
-            "Imię pracownika": form.name,
-            "Nazwisko pracownika": form.surname,
-            "Płeć pracownika": getGenderAbbreviation(form.gender),
-            "PESEL pracownika": form.pesel,
-            "Email": form.email,
-            "Nr telefonu": form.phone,
+            "Imię pracownika": form.name, "Nazwisko pracownika": form.surname, "Płeć pracownika": getGenderAbbreviation(form.gender),
+            "PESEL pracownika": form.pesel, "Email": form.email, "Nr telefonu": form.phone,
             "Adres": `${form.street || ''} ${form.houseNumber || ''}${form.flatNumber ? `/${form.flatNumber}` : ''}, ${form.zip || ''} ${form.city || ''}`,
             "Ulica": form.street, "Numer domu": form.houseNumber, "Numer mieszkania": form.flatNumber || "", "Kod-pocztowy": form.zip,
             "Poczta": form.postOffice, "Miasto": form.city, "Województwo": form.region, "Kraj": form.country,
@@ -50,7 +55,6 @@ const transformDataForExport = (data: FormData[]) => {
             "Typ dokumentu członka rodziny": "", "Nr dokumentu członka rodziny": "", "Kraj wydający dokument członka rodziny": "",
             "Data zgłoszenia": form.createdAt ? new Date(form.createdAt).toLocaleDateString('pl-PL') : "-",
         };
-
         if (form.submissionType === 'family') {
             record["Imię członka rodziny"] = form.familyName; record["Nazwisko członka rodziny"] = form.familySurname;
             record["Płeć członka rodziny"] = getGenderAbbreviation(form.familyGender);
@@ -68,10 +72,12 @@ const transformDataForExport = (data: FormData[]) => {
     });
 };
 
-// --- GŁÓWNY KOMPONENT PANELU ADMINA ---
+
 export const AdminPanel = () => {
     const navigate = useNavigate();
     const DECRYPTION_KEY = import.meta.env.VITE_DECRYPTION_KEY;
+
+    // Stany dla formularzy i panelu
     const [forms, setForms] = useState<FormData[]>([]);
     const [userRole, setUserRole] = useState<string | null>(null);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -80,17 +86,23 @@ export const AdminPanel = () => {
     const [typeFilter, setTypeFilter] = useState<"" | "employee" | "family">("");
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
+    // NOWE: Stany do zarządzania użytkownikami
+    const [users, setUsers] = useState<User[]>([]);
+    const [userManagementError, setUserManagementError] = useState<string | null>(null);
+
+    // Efekt do sprawdzania logowania (bez zmian)
     useEffect(() => {
         const loggedIn = localStorage.getItem("isLoggedIn") === "true";
         const role = localStorage.getItem("userRole");
+        const userId = localStorage.getItem("userId"); // Pobieramy userId przy logowaniu
         setIsLoggedIn(loggedIn);
         setUserRole(role);
         setIsLoading(false);
     }, []);
 
+    // Efekt do pobierania formularzy (bez zmian)
     useEffect(() => {
         if (!isLoggedIn || !DECRYPTION_KEY) return;
-
         const fetchAndDecryptForms = async () => {
             try {
                 const token = localStorage.getItem('authToken');
@@ -111,6 +123,34 @@ export const AdminPanel = () => {
         };
         fetchAndDecryptForms();
     }, [isLoggedIn, DECRYPTION_KEY]);
+
+    // NOWA FUNKCJA: Do pobierania listy użytkowników
+    const fetchUsers = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error("Brak tokenu autoryzacyjnego.");
+            const apiUrl = `${import.meta.env.VITE_API_URL}/api/users`;
+            const response = await fetch(apiUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || 'Nie udało się pobrać listy użytkowników.');
+            }
+            const data = await response.json();
+            setUsers(data);
+            setUserManagementError(null);
+        } catch (err: any) {
+            setUserManagementError(err.message);
+            console.error(err);
+        }
+    };
+
+    // Efekt do pobierania użytkowników (tylko dla superadmina)
+    useEffect(() => {
+        if (isLoggedIn && userRole === 'superadmin') {
+            fetchUsers();
+        }
+    }, [isLoggedIn, userRole]);
+
 
     const handleExport = () => {
         const dataToExport = transformDataForExport(filteredForms);
@@ -160,9 +200,14 @@ export const AdminPanel = () => {
                 {userRole === 'superadmin' && (
                     <div className="mt-12">
                         <h2 className="text-2xl font-bold text-gray-800 mb-6">Zarządzanie użytkownikami</h2>
+                        {userManagementError && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{userManagementError}</div>}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="bg-white p-6 rounded-xl shadow-md"><AddUserForm /></div>
-                            <div className="bg-white p-6 rounded-xl shadow-md"><UserList /></div>
+                            <div className="bg-white p-6 rounded-xl shadow-md">
+                                <AddUserForm onUserAdded={fetchUsers} />
+                            </div>
+                            <div className="bg-white p-6 rounded-xl shadow-md">
+                                <UserList users={users} onUserDeleted={fetchUsers} />
+                            </div>
                         </div>
                     </div>
                 )}
