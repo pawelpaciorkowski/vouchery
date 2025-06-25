@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Plik: src/UserList.tsx
 
 import React from 'react';
