@@ -2,7 +2,7 @@
 // Plik: src/AdminPanel.tsx
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import CryptoJS from 'crypto-js';
 import * as XLSX from 'xlsx';
@@ -94,7 +94,6 @@ export const AdminPanel = () => {
     useEffect(() => {
         const loggedIn = localStorage.getItem("isLoggedIn") === "true";
         const role = localStorage.getItem("userRole");
-        const userId = localStorage.getItem("userId"); // Pobieramy userId przy logowaniu
         setIsLoggedIn(loggedIn);
         setUserRole(role);
         setIsLoading(false);
