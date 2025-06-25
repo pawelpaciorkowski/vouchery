@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { AddUserForm } from './AddUserForm';
 import { UserList } from './UserList';
 
+// Typ danych
 export type FormData = {
     id: number;
     submissionType: "employee" | "family";
@@ -39,8 +40,9 @@ export type FormData = {
     createdAt?: string;
 };
 
-function getBirthDateFromPesel(pesel: string): string | null {
-    if (!/^\d{11}$/.test(pesel)) return null;
+// --- FUNKCJE POMOCNICZE ---
+function getBirthDateFromPesel(pesel: string | undefined): string {
+    if (!pesel || !/^\d{11}$/.test(pesel)) return "";
     let year = parseInt(pesel.substring(0, 2), 10);
     let month = parseInt(pesel.substring(2, 4), 10);
     const day = parseInt(pesel.substring(4, 6), 10);
@@ -52,16 +54,18 @@ function getBirthDateFromPesel(pesel: string): string | null {
     return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
 }
 
+// --- NOWA, POPRAWIONA FUNKCJA DO TRANSFORMACJI DANYCH ---
 const transformDataForExport = (data: FormData[]) => {
     const getGenderAbbreviation = (gender: string | undefined): 'K' | 'M' | '' => {
         if (!gender) return '';
-        if (gender.toLowerCase() === 'kobieta') return 'K';
-        if (gender.toLowerCase() === 'mezczyzna') return 'M';
+        const lowerGender = gender.toLowerCase();
+        if (lowerGender === 'kobieta') return 'K';
+        if (lowerGender === 'mezczyzna' || lowerGender === 'm') return 'M';
         return '';
     };
 
     return data.map(form => {
-        const familyDocType = form.familyDocumentType === 'dowod' ? 'Dowód osobisty' : 'Paszport';
+        // Tworzymy obiekt z kluczami w DOKŁADNIE takiej kolejności jak na zrzucie ekranu
         const record: Record<string, any> = {
             "Imię pracownika": form.name,
             "Nazwisko pracownika": form.surname,
@@ -69,7 +73,7 @@ const transformDataForExport = (data: FormData[]) => {
             "PESEL pracownika": form.pesel,
             "Email": form.email,
             "Nr telefonu": form.phone,
-            "Adres": `${form.street || ''} ${form.houseNumber || ''}${form.flatNumber ? `/${form.flatNumber}` : ''}, ${form.zip || ''} ${form.postOffice || ''}`,
+            "Adres": `${form.street || ''} ${form.houseNumber || ''}${form.flatNumber ? `/${form.flatNumber}` : ''}, ${form.zip || ''} ${form.city || ''}`,
             "Ulica": form.street,
             "Numer domu": form.houseNumber,
             "Numer mieszkania": form.flatNumber || "",
@@ -78,28 +82,42 @@ const transformDataForExport = (data: FormData[]) => {
             "Miasto": form.city,
             "Województwo": form.region,
             "Kraj": form.country,
-            "Typ dokumentu pracownika": 'PESEL',
-            "Nr dokumentu pracownika": form.pesel,
-            "Kraj wydający dokument pracownika": 'Polska',
-            "Data zgłoszenia": form.createdAt ? form.createdAt.substring(0, 10) : "-",
+            "Typ dokumentu pracownika": "", // Zostawiamy puste, bo identyfikacja jest przez PESEL
+            "Nr dokumentu pracownika": "",
+            "Kraj wydający dokument pracownika": "",
+            "Imię członka rodziny": "", // Inicjujemy puste pola dla członka rodziny
+            "Nazwisko członka rodziny": "",
+            "Płeć członka rodziny": "",
+            "PESEL członka rodziny": "",
+            "Data urodzenia członka rodziny": "",
+            "Typ dokumentu członka rodziny": "",
+            "Nr dokumentu członka rodziny": "",
+            "Kraj wydający dokument członka rodziny": "",
+            "Data zgłoszenia": form.createdAt ? new Date(form.createdAt).toLocaleDateString('pl-PL') : "-",
         };
 
+        // Warunkowo wypełniamy dane członka rodziny, jeśli zgłoszenie go dotyczy
         if (form.submissionType === 'family') {
             record["Imię członka rodziny"] = form.familyName;
             record["Nazwisko członka rodziny"] = form.familySurname;
             record["Płeć członka rodziny"] = getGenderAbbreviation(form.familyGender);
-            record["PESEL członka rodziny"] = form.familyPesel;
-            record["Data urodzenia członka rodziny"] = form.familyIdentityMethod === 'pesel' ? getBirthDateFromPesel(form.familyPesel || '') : form.familyBirthDate;
-            record["Typ dokumentu członka rodziny"] = form.familyIdentityMethod === 'pesel' ? 'PESEL' : familyDocType;
-            record["Nr dokumentu członka rodziny"] = form.familyIdentityMethod === 'pesel' ? form.familyPesel : form.familyDocNumber;
-            record["Kraj wydający dokument członka rodziny"] = form.familyIdentityMethod === 'pesel' ? 'Polska' : form.familyIssuingCountry;
-        }
 
+            if (form.familyIdentityMethod === 'pesel') {
+                record["PESEL członka rodziny"] = form.familyPesel;
+                record["Data urodzenia członka rodziny"] = getBirthDateFromPesel(form.familyPesel);
+            } else { // Metoda 'birthDoc'
+                record["Data urodzenia członka rodziny"] = form.familyBirthDate;
+                record["Typ dokumentu członka rodziny"] = form.familyDocumentType === 'dowod' ? 'Dowód osobisty' : 'Paszport';
+                record["Nr dokumentu członka rodziny"] = form.familyDocNumber;
+                record["Kraj wydający dokument członka rodziny"] = form.familyIssuingCountry;
+            }
+        }
         return record;
     });
 };
 
 
+// --- GŁÓWNY KOMPONENT PANELU ADMINA ---
 export const AdminPanel = () => {
     const navigate = useNavigate();
     const DECRYPTION_KEY = import.meta.env.VITE_DECRYPTION_KEY;
@@ -108,7 +126,6 @@ export const AdminPanel = () => {
     const [userRole, setUserRole] = useState<string | null>(null);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-    // Filtry ze starszej wersji
     const [dateFilter, setDateFilter] = useState<string>("");
     const [typeFilter, setTypeFilter] = useState<"" | "employee" | "family">("");
 
@@ -126,46 +143,29 @@ export const AdminPanel = () => {
             console.error("Klucz VITE_DECRYPTION_KEY nie jest ustawiony!");
             return;
         }
-
         const fetchAndDecryptForms = async () => {
             try {
-                const token = localStorage.getItem('authToken'); // Pobierz token
-                if (!token) throw new Error('Brak tokenu autoryzacyjnego.');
+                const token = localStorage.getItem('authToken');
                 const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/forms`;
-                const response = await fetch(apiUrl, {
-                    headers: {
-                        // Dołącz nagłówek z tokenem
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                const response = await fetch(apiUrl, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (!response.ok) throw new Error('Błąd pobierania danych');
-
                 const encryptedForms = await response.json();
                 const decryptedForms = encryptedForms.map((form: any) => {
                     try {
                         const bytes = CryptoJS.AES.decrypt(form.encrypted_data, DECRYPTION_KEY);
                         const decryptedDataString = bytes.toString(CryptoJS.enc.Utf8);
                         const decryptedAllData = decryptedDataString ? JSON.parse(decryptedDataString) : {};
-
-                        // POPRAWKA: Wszystkie dane pochodzą teraz z odszyfrowanego obiektu
-                        return {
-                            id: form.id,
-                            createdAt: form.created_at,
-                            ...decryptedAllData
-                        };
+                        return { id: form.id, createdAt: form.created_at, ...decryptedAllData };
                     } catch (e) {
                         console.error(`Nie udało się przetworzyć rekordu ID: ${form.id}`, e);
-                        return null; // Zwróć null w przypadku błędu
+                        return null;
                     }
-                }).filter(Boolean); // Usuń wszystkie nulle z tablicy
-
+                }).filter(Boolean);
                 setForms(decryptedForms as FormData[]);
             } catch (error) {
                 console.error("Nie udało się pobrać formularzy:", error);
             }
         };
-
-
         fetchAndDecryptForms();
     }, [isLoggedIn, DECRYPTION_KEY]);
 
@@ -204,7 +204,6 @@ export const AdminPanel = () => {
                     Wyloguj
                 </button>
             </div>
-
             <div className="mb-6 flex gap-4 items-center flex-wrap">
                 <button className="px-6 py-2 bg-blue-600 text-white rounded-lg shadow font-semibold" onClick={handleExport}>
                     Pobierz raport (Excel)
@@ -224,7 +223,6 @@ export const AdminPanel = () => {
                     <button onClick={() => setTypeFilter("")} className="ml-2 px-3 py-1 text-sm">Wyczyść</button>
                 </div>
             </div>
-
             <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse border">
                     <thead>
@@ -255,7 +253,6 @@ export const AdminPanel = () => {
                     </tbody>
                 </table>
             </div>
-
             {userRole === 'superadmin' && (
                 <>
                     <AddUserForm />
