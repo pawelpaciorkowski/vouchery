@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Plik: src/AddUserForm.tsx
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 
 export const AddUserForm = () => {
@@ -14,20 +15,17 @@ export const AddUserForm = () => {
         setIsError(false);
 
         try {
-            // 1. Pobieramy token z localStorage
             const token = localStorage.getItem('authToken');
             if (!token) {
                 throw new Error("Brak tokenu autoryzacyjnego. Zaloguj się ponownie.");
             }
 
-            const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users`;
+            const apiUrl = `${import.meta.env.VITE_API_URL}/api/users`;
 
-            // 2. Wysyłamy zapytanie z poprawnymi nagłówkami
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    // Dołączamy token do nagłówka 'Authorization'
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({ username, password }),
@@ -51,27 +49,49 @@ export const AddUserForm = () => {
     };
 
     return (
-        <div className="mt-8 border-t pt-6">
-            <h3 className="text-xl font-bold mb-4">Dodaj nowego administratora</h3>
-            <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-start">
-                <input
-                    type="text"
-                    placeholder="Nazwa użytkownika"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="p-2 border rounded w-full md:w-auto"
-                    required
-                />
-                <input
-                    type="password"
-                    placeholder="Hasło"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="p-2 border rounded w-full md:w-auto"
-                    required
-                />
-                <button type="submit" className="bg-blue-600 text-white p-2 rounded w-full md:w-auto">
-                    Dodaj użytkownika
+        // Usunęliśmy zewnętrzny div z obramowaniem, ponieważ karta w AdminPanel już go zapewnia.
+        <div>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Dodaj nowego administratora</h3>
+            {/* Zmieniamy układ na wertykalny i dodajemy etykiety */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label htmlFor="new-username" className="block text-sm font-medium text-gray-700 mb-1">
+                        Nazwa użytkownika
+                    </label>
+                    <input
+                        id="new-username"
+                        type="text"
+                        placeholder="Nazwa nowego admina"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        // Ujednolicone, nowocześniejsze style dla inputa
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
+                        Hasło
+                    </label>
+                    <input
+                        id="new-password"
+                        type="password"
+                        placeholder="Hasło dla nowego admina"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        // Ujednolicone, nowocześniejsze style dla inputa
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    // Ujednolicone, nowocześniejsze style dla przycisku
+                    className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    Utwórz użytkownika
                 </button>
             </form>
             {message && (

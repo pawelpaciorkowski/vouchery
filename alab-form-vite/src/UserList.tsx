@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Plik: src/UserList.tsx - WERSJA POPRAWIONA Z DOŁĄCZANIEM TOKENU
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 // Typ dla pojedynczego użytkownika
 interface User {
@@ -23,7 +23,7 @@ export const UserList = () => {
                     throw new Error("Brak tokenu autoryzacyjnego. Zaloguj się ponownie.");
                 }
 
-                const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users`;
+                const apiUrl = `${import.meta.env.VITE_API_URL}/api/users`;
 
                 // 2. Wysyłamy zapytanie Z NAGŁÓWKIEM autoryzacyjnym
                 const response = await fetch(apiUrl, {
@@ -58,7 +58,7 @@ export const UserList = () => {
                 throw new Error("Brak tokenu autoryzacyjnego.");
             }
 
-            const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/${userId}`;
+            const apiUrl = `${import.meta.env.VITE_API_URL}/api/users/${userId}`;
             const response = await fetch(apiUrl, {
                 method: 'DELETE',
                 headers: {

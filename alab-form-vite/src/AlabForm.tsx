@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Formik, Form, Field, ErrorMessage, useField } from "formik";
 import * as Yup from "yup";
 import Select from "react-select";
-import CryptoJS from "crypto-js";
 
 type ModalProps = {
     isOpen: boolean;
@@ -46,7 +45,7 @@ const DOCUMENT_TYPES = [
 ];
 
 const CapitalizedField = (props: any) => {
-    const [field, meta, helpers] = useField(props.name);
+    const [field, , helpers] = useField(props.name);
     const { setValue } = helpers;
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -205,7 +204,7 @@ const familyValidation = {
     familyBirthDate: Yup.string().when("familyIdentityMethod", { is: "birthDoc", then: schema => schema.required("Data urodzenia jest wymagana"), }),
     familyDocumentType: Yup.string().when("familyIdentityMethod", { is: "birthDoc", then: schema => schema.required("Typ dokumentu jest wymagany"), }),
     familyDocNumber: Yup.string().when(["familyIdentityMethod", "familyDocumentType"], {
-        is: (idMethod: string, docType: string) => idMethod === "birthDoc",
+        is: (idMethod: string) => idMethod === "birthDoc",
         then: schema => schema.required("Nr dokumentu jest wymagany")
             .when("familyDocumentType", {
                 is: "dowod",
@@ -249,7 +248,6 @@ const initialValues = {
     zgodaZapoznanie: false,
 };
 
-const SECRET_KEY = "MocnoTajnyKlucz!";
 
 export const AlabForm = () => {
     const [type, setType] = useState<"employee" | "family">("employee");

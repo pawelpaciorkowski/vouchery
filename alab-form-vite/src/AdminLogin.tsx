@@ -13,7 +13,7 @@ export const AdminLogin = () => {
         setError("");
 
         try {
-            const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/login`;
+            const apiUrl = `${import.meta.env.VITE_API_URL}/api/login`;
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
