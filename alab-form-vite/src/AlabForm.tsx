@@ -453,7 +453,7 @@ export const AlabForm = () => {
                                     <ErrorMessage name="zgodaDanePrawdziwe" component="div" className="text-xs text-red-500 ml-6" />
                                     <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaPrzetwarzanie" /><span>Wyrażam zgodę na przetwarzanie danych osobowych podanych w formularzu w celu udzielenia zniżki na badania.</span></label>
                                     <ErrorMessage name="zgodaPrzetwarzanie" component="div" className="text-xs text-red-500 ml-6" />
-                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaZapoznanie" /><span>Oświadczam, że zapoznałam/em się i akceptuję „ Procedurę udzielania zniżek na badania diagnostyczne dla pracowników i ich rodzin”.</span></label>
+                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaZapoznanie" /><span>Oświadczam, że zapoznałam/em się i akceptuję <a href="/procedura.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">„Procedurę udzielania zniżek na badania diagnostyczne dla pracowników i ich rodzin”</a>.</span></label>
                                     <ErrorMessage name="zgodaZapoznanie" component="div" className="text-xs text-red-500 ml-6" />
                                 </div>
                             </div>
