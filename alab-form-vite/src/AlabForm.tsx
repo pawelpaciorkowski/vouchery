@@ -253,8 +253,7 @@ export const AlabForm = () => {
     const [type, setType] = useState<"employee" | "family">("employee");
     const [familyIdentityMethod, setFamilyIdentityMethod] = useState<"pesel" | "birthDoc">("pesel");
     const [areAllConsentsSelected, setAreAllConsentsSelected] = useState(false);
-
-    // --- NOWY STAN DLA MODALA ---
+    const apiUrl = import.meta.env.VITE_API_URL;
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState({ title: "", message: "" });
 
@@ -272,7 +271,7 @@ export const AlabForm = () => {
                     onSubmit={async (values, { setSubmitting, resetForm }) => {
                         setSubmitting(true);
                         try {
-                            const response = await fetch('http://localhost:3000/api/forms', {
+                            const response = await fetch(`${apiUrl}/api/forms`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
