@@ -17,12 +17,12 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     return (
         // Tło modala (przyciemnienie)
         <div
-            className="fixed inset-0 bg-black bg-opacity-60 z-40 flex items-center justify-center"
+            className="fixed inset-0 bg-opacity-50 backdrop-blur-sm z-40 flex items-center justify-center"
             onClick={onClose} // Zamykanie po kliknięciu w tło
         >
             {/* Kontener modala */}
             <div
-                className="bg-white rounded-xl shadow-2xl m-4 w-full max-w-5xl max-h-[90vh] flex flex-col"
+                className="bg-white rounded-xl shadow-2xl m-4 w-full max-w-8xl max-h-[90vh] flex flex-col"
                 onClick={e => e.stopPropagation()} // Zapobiega zamykaniu po kliknięciu w modal
             >
                 {/* Nagłówek modala */}

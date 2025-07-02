@@ -22,8 +22,8 @@ export interface User {
 }
 
 // Funkcje pomocnicze (getBirthDateFromPesel, transformDataForExport) pozostają bez zmian
-function getBirthDateFromPesel(pesel: string | undefined): string {
-    if (!pesel || !/^\d{11}$/.test(pesel)) return "";
+function getBirthDateFromPesel(pesel: string | undefined): Date | null {
+    if (!pesel || !/^\d{11}$/.test(pesel)) return null;
     let year = parseInt(pesel.substring(0, 2), 10);
     let month = parseInt(pesel.substring(2, 4), 10);
     const day = parseInt(pesel.substring(4, 6), 10);
@@ -32,10 +32,10 @@ function getBirthDateFromPesel(pesel: string | undefined): string {
     else if (month > 40) { year += 2100; month -= 40; }
     else if (month > 20) { year += 2000; month -= 20; }
     else { year += 1900; }
-    return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+    return new Date(year, month - 1, day);
 }
 
-const transformDataForExport = (data: FormData[]) => {
+const transformDataForExport = (data: FormData[], mode: 'export' | 'preview') => {
     const getGenderAbbreviation = (gender: string | undefined): 'K' | 'M' | '' => {
         if (!gender) return '';
         const lowerGender = gender.toLowerCase();
@@ -44,25 +44,32 @@ const transformDataForExport = (data: FormData[]) => {
         return '';
     };
     return data.map(form => {
+        const formatDate = (date: Date | string | undefined) => {
+            if (!date) return "";
+            const d = new Date(date);
+            if (mode === 'export') return d;
+            return d.toLocaleDateString('pl-PL');
+        };
+
         const record: Record<string, any> = {
             "Imię pracownika": form.name, "Nazwisko pracownika": form.surname, "Płeć pracownika": getGenderAbbreviation(form.gender),
             "PESEL pracownika": form.pesel, "Email": form.email, "Nr telefonu": form.phone,
-            "Adres": `${form.street || ''} ${form.houseNumber || ''}${form.flatNumber ? `/${form.flatNumber}` : ''}, ${form.zip || ''} ${form.city || ''}`,
             "Ulica": form.street, "Numer domu": form.houseNumber, "Numer mieszkania": form.flatNumber || "", "Kod-pocztowy": form.zip,
             "Poczta": form.postOffice, "Miasto": form.city, "Województwo": form.region, "Kraj": form.country,
             "Typ dokumentu pracownika": "", "Nr dokumentu pracownika": "", "Kraj wydający dokument pracownika": "",
             "Imię członka rodziny": "", "Nazwisko członka rodziny": "", "Płeć członka rodziny": "", "PESEL członka rodziny": "", "Data urodzenia członka rodziny": "",
             "Typ dokumentu członka rodziny": "", "Nr dokumentu członka rodziny": "", "Kraj wydający dokument członka rodziny": "",
-            "Data zgłoszenia": form.createdAt ? new Date(form.createdAt).toLocaleDateString('pl-PL') : "-",
+            "Data zgłoszenia": formatDate(form.createdAt),
         };
         if (form.submissionType === 'family') {
             record["Imię członka rodziny"] = form.familyName; record["Nazwisko członka rodziny"] = form.familySurname;
             record["Płeć członka rodziny"] = getGenderAbbreviation(form.familyGender);
             if (form.familyIdentityMethod === 'pesel') {
                 record["PESEL członka rodziny"] = form.familyPesel;
-                record["Data urodzenia członka rodziny"] = getBirthDateFromPesel(form.familyPesel);
+                const birthDate = getBirthDateFromPesel(form.familyPesel);
+                record["Data urodzenia członka rodziny"] = birthDate ? formatDate(birthDate) : "";
             } else {
-                record["Data urodzenia członka rodziny"] = form.familyBirthDate;
+                record["Data urodzenia członka rodziny"] = formatDate(form.familyBirthDate);
                 record["Typ dokumentu członka rodziny"] = form.familyDocumentType === 'dowod' ? 'Dowód osobisty' : 'Paszport';
                 record["Nr dokumentu członka rodziny"] = form.familyDocNumber;
                 record["Kraj wydający dokument członka rodziny"] = form.familyIssuingCountry;
@@ -82,7 +89,8 @@ export const AdminPanel = () => {
     const [userRole, setUserRole] = useState<string | null>(null);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-    const [dateFilter, setDateFilter] = useState<string>("");
+    const [dateFrom, setDateFrom] = useState<string>("");
+    const [dateTo, setDateTo] = useState<string>("");
     const [typeFilter, setTypeFilter] = useState<"" | "employee" | "family">("");
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
@@ -97,6 +105,9 @@ export const AdminPanel = () => {
         setIsLoggedIn(loggedIn);
         setUserRole(role);
         setIsLoading(false);
+        const today = new Date().toISOString().split('T')[0];
+        setDateFrom(today);
+        setDateTo(today);
     }, []);
 
     // Efekt do pobierania formularzy (bez zmian)
@@ -152,7 +163,7 @@ export const AdminPanel = () => {
 
 
     const handleExport = () => {
-        const dataToExport = transformDataForExport(filteredForms);
+        const dataToExport = transformDataForExport(filteredForms, 'export');
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Formularze");
@@ -165,7 +176,13 @@ export const AdminPanel = () => {
     };
 
     const filteredForms = forms
-        .filter(f => dateFilter ? (f.createdAt && f.createdAt.startsWith(dateFilter)) : true)
+        .filter(f => {
+            if (!dateFrom || !dateTo || !f.createdAt) return true;
+            const formDate = new Date(f.createdAt).getTime();
+            const fromDate = new Date(dateFrom).getTime();
+            const toDate = new Date(dateTo).getTime();
+            return formDate >= fromDate && formDate <= toDate + (24 * 60 * 60 * 1000 - 1); // Dodajemy 1 dzień w milisekundach, aby uwzględnić cały dzień "do"
+        })
         .filter(f => typeFilter ? f.submissionType === typeFilter : true);
 
     const tableColumns = [
@@ -175,7 +192,7 @@ export const AdminPanel = () => {
         { key: 'createdAt', label: 'Data zgłoszenia' },
     ];
 
-    const dataForPreview = transformDataForExport(filteredForms);
+    const dataForPreview = transformDataForExport(filteredForms, 'preview');
     const previewHeaders = dataForPreview.length > 0 ? Object.keys(dataForPreview[0]) : [];
 
     if (isLoading) return <div className="flex items-center justify-center min-h-screen">Ładowanie...</div>;
@@ -187,8 +204,10 @@ export const AdminPanel = () => {
                 <DashboardActions
                     onExport={handleExport}
                     onPreview={() => setIsPreviewModalOpen(true)}
-                    dateFilter={dateFilter}
-                    onDateChange={setDateFilter}
+                    dateFrom={dateFrom}
+                    onDateFromChange={setDateFrom}
+                    dateTo={dateTo}
+                    onDateToChange={setDateTo}
                     typeFilter={typeFilter}
                     onTypeChange={setTypeFilter}
                     onLogout={handleLogout}
@@ -213,7 +232,7 @@ export const AdminPanel = () => {
             </main>
 
             <Modal isOpen={isPreviewModalOpen} onClose={() => setIsPreviewModalOpen(false)} title="Podgląd raportu do eksportu">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto bg-gray-10 p-4">
                     <table className="w-full text-xs border-collapse">
                         <thead>
                             <tr className="bg-gray-100">

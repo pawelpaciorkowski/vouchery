@@ -252,6 +252,7 @@ const initialValues = {
 export const AlabForm = () => {
     const [type, setType] = useState<"employee" | "family">("employee");
     const [familyIdentityMethod, setFamilyIdentityMethod] = useState<"pesel" | "birthDoc">("pesel");
+    const [areAllConsentsSelected, setAreAllConsentsSelected] = useState(false);
 
     // --- NOWY STAN DLA MODALA ---
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -260,7 +261,7 @@ export const AlabForm = () => {
 
     return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center p-10">
-            <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-3xl">
+            <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-5xl">
                 <h2 className="text-4xl sm:text-3xl font-extrabold text-center mb-8 tracking-tight bg-gradient-to-r from-blue-700 via-sky-500 to-blue-400 bg-clip-text text-transparent select-none">
                     Formularz zgłoszeniowy {type === 'employee' ? 'pracownika' : 'członka rodziny'}
                 </h2>
@@ -271,13 +272,12 @@ export const AlabForm = () => {
                     onSubmit={async (values, { setSubmitting, resetForm }) => {
                         setSubmitting(true);
                         try {
-                            // Adres Twojego działającego serwera
                             const response = await fetch('http://localhost:3000/api/forms', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                 },
-                                body: JSON.stringify(values), // Wysyłamy dane formularza jako JSON
+                                body: JSON.stringify(values),
                             });
 
                             if (!response.ok) {
@@ -435,11 +435,26 @@ export const AlabForm = () => {
                             <div className="mb-4 mt-8 border-t border-gray-200 pt-4">
                                 <h3 className="text-lg font-semibold text-blue-600 pb-2 mb-4">Zgody</h3>
                                 <div className="flex flex-col gap-2">
-                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaDanePrawdziwe" /><span>Oświadczam, że podane dane są zgodne z prawdą.</span></label>
+                                    <label className="flex items-center gap-2 font-bold">
+                                        <input
+                                            type="checkbox"
+                                            checked={areAllConsentsSelected}
+                                            onChange={() => {
+                                                const newValue = !areAllConsentsSelected;
+                                                setAreAllConsentsSelected(newValue);
+                                                setFieldValue("zgodaDanePrawdziwe", newValue);
+                                                setFieldValue("zgodaPrzetwarzanie", newValue);
+                                                setFieldValue("zgodaZapoznanie", newValue);
+                                            }}
+                                        />
+                                        <span>Zaznacz wszystko</span>
+                                    </label>
+                                    <hr className="my-2" />
+                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaDanePrawdziwe" /><span>Oświadczam, że podane w formularzu dane są zgodne z prawdą.</span></label>
                                     <ErrorMessage name="zgodaDanePrawdziwe" component="div" className="text-xs text-red-500 ml-6" />
-                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaPrzetwarzanie" /><span>Zgoda na przetwarzanie danych w celu udzielenia zniżki.</span></label>
+                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaPrzetwarzanie" /><span>Wyrażam zgodę na przetwarzanie danych osobowych podanych w formularzu w celu udzielenia zniżki na badania.</span></label>
                                     <ErrorMessage name="zgodaPrzetwarzanie" component="div" className="text-xs text-red-500 ml-6" />
-                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaZapoznanie" /><span>Akceptuję „Procedurę udzielania zniżek...”.</span></label>
+                                    <label className="flex items-center gap-2"><Field type="checkbox" name="zgodaZapoznanie" /><span>Oświadczam, że zapoznałam/em się i akceptuję „ Procedurę udzielania zniżek na badania diagnostyczne dla pracowników i ich rodzin”.</span></label>
                                     <ErrorMessage name="zgodaZapoznanie" component="div" className="text-xs text-red-500 ml-6" />
                                 </div>
                             </div>

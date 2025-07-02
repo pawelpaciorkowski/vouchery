@@ -3,9 +3,11 @@ import React from 'react';
 
 type DashboardActionsProps = {
     onExport: () => void;
-    onPreview: () => void; // Dodajemy nową funkcję
-    dateFilter: string;
-    onDateChange: (date: string) => void;
+    onPreview: () => void;
+    dateFrom: string;
+    onDateFromChange: (date: string) => void;
+    dateTo: string;
+    onDateToChange: (date: string) => void;
     typeFilter: "" | "employee" | "family";
     onTypeChange: (type: "" | "employee" | "family") => void;
     onLogout: () => void;
@@ -14,8 +16,10 @@ type DashboardActionsProps = {
 export const DashboardActions: React.FC<DashboardActionsProps> = ({
     onExport,
     onPreview,
-    dateFilter,
-    onDateChange,
+    dateFrom,
+    onDateFromChange,
+    dateTo,
+    onDateToChange,
     typeFilter,
     onTypeChange,
     onLogout
@@ -35,7 +39,7 @@ export const DashboardActions: React.FC<DashboardActionsProps> = ({
                     <div className="flex items-center gap-3">
                         {/* Nowy przycisk podglądu */}
                         <button
-                            className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm font-semibold hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
+                            className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm font-semibold hover:bg-gray-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
                             onClick={onPreview}
                         >
                             Podgląd raportu
@@ -50,17 +54,22 @@ export const DashboardActions: React.FC<DashboardActionsProps> = ({
 
                     {/* Filtr daty */}
                     <div className="flex items-center gap-2">
-                        <label htmlFor="date-filter" className="text-sm font-medium text-gray-600">Filtruj po dacie:</label>
+                        <label htmlFor="date-from" className="text-sm font-medium text-gray-600">Data od:</label>
                         <input
-                            id="date-filter"
+                            id="date-from"
                             type="date"
-                            value={dateFilter}
-                            onChange={e => onDateChange(e.target.value)}
+                            value={dateFrom}
+                            onChange={e => onDateFromChange(e.target.value)}
                             className="border border-gray-300 px-3 py-1.5 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                         />
-                        {dateFilter && (
-                            <button onClick={() => onDateChange("")} className="text-xs text-gray-500 hover:text-gray-800">Wyczyść</button>
-                        )}
+                        <label htmlFor="date-to" className="text-sm font-medium text-gray-600">do:</label>
+                        <input
+                            id="date-to"
+                            type="date"
+                            value={dateTo}
+                            onChange={e => onDateToChange(e.target.value)}
+                            className="border border-gray-300 px-3 py-1.5 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        />
                     </div>
 
                     {/* Filtr typu zgłoszenia */}
