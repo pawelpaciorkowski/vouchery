@@ -3,7 +3,7 @@ export type FormData = {
     submissionType: "employee" | "family";
     name: string;
     surname: string;
-    gender: string;
+    gender: 'male' | 'female';
     pesel: string;
     birthDate: string;
     email: string;
@@ -18,7 +18,7 @@ export type FormData = {
     region: string;
     familyName?: string;
     familySurname?: string;
-    familyGender?: string;
+    familyGender?: 'male' | 'female';
     familyPesel?: string;
     familyIdentityMethod?: "pesel" | "birthDoc";
     familyBirthDate?: string;
