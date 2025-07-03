@@ -21,9 +21,7 @@ export interface User {
     role: string;
 }
 
-// === OSTATECZNA WERSJA KOMPONENTU ===
 
-// Funkcje pomocnicze
 const formatDate = (date: Date | string | null | undefined): string => {
     if (!date) return "";
     try {
@@ -74,7 +72,6 @@ export const AdminPanel = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [userManagementError, setUserManagementError] = useState<string | null>(null);
 
-    // Efekty i pobieranie danych (bez zmian)
     useEffect(() => {
         const loggedIn = localStorage.getItem("isLoggedIn") === "true";
         const role = localStorage.getItem("userRole");
@@ -134,13 +131,8 @@ export const AdminPanel = () => {
         }
     }, [isLoggedIn, userRole]);
 
-    // ODPORNA NA BŁĘDY FUNKCJA EKSPORTU
-    // ZASTĄP STARĄ FUNKCJĘ TĄ NOWĄ, POPRAWIONĄ WERSJĄ
     const handleExport = () => {
-        // Zostaw tę linię do diagnozowania problemów z danymi!
-        console.log("Dane przekazywane do eksportu:", filteredForms);
 
-        // 1. Definicja nagłówków - stała, zgodna z test.xlsx
         const mainHeader = [
             null, null, null, null, null, null, null,
             "Dokument tożsamości", null, null,
@@ -152,7 +144,6 @@ export const AdminPanel = () => {
             "Kraj", "Województwo", "Miasto", "Kod-pocztowy", "Poczta", "Ulica", "Numer domu", "Numer mieszkania", "Niestandardowy adres"
         ];
 
-        // 2. Transformacja danych na podstawie filtra
         let peopleToExport: any[] = [];
 
         if (typeFilter === 'family') {
@@ -193,12 +184,11 @@ export const AdminPanel = () => {
                 }));
         }
 
-        // 3. POPRAWKA: Ręczne mapowanie danych do wierszy w prawidłowej kolejności
         const dataRows = peopleToExport.map(person => [
             person.name,
             person.surname,
             person.pesel,
-            person.gender, // Płeć jest teraz na pewno na właściwym miejscu
+            person.gender,
             person.birthDate,
             person.email,
             person.phone,
@@ -216,7 +206,6 @@ export const AdminPanel = () => {
             person.customAddress
         ]);
 
-        // 4. Budowanie i pobieranie pliku .xlsx
         const dataToExport = [mainHeader, detailedHeader, ...dataRows];
         const ws = XLSX.utils.aoa_to_sheet(dataToExport);
 
@@ -242,7 +231,6 @@ export const AdminPanel = () => {
         })
         .filter(f => typeFilter ? f.submissionType === typeFilter : true);
 
-    // Reszta komponentu bez zmian
     const tableColumns = [
         { key: 'name', label: 'Imię' }, { key: 'surname', label: 'Nazwisko' },
         { key: 'pesel', label: 'PESEL' }, { key: 'email', label: 'Email' },
