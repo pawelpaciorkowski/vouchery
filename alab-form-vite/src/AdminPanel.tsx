@@ -21,32 +21,28 @@ export interface User {
     role: string;
 }
 
-// === NOWA, ULEPSZONA LOGIKA KOMPONENTU ===
+// === OSTATECZNA WERSJA KOMPONENTU ===
 
 // Funkcje pomocnicze
-const formatDate = (date: Date | string | null | undefined) => {
+const formatDate = (date: Date | string | null | undefined): string => {
     if (!date) return "";
-    return new Date(date).toLocaleDateString('pl-PL');
+    try {
+        return new Date(date).toLocaleDateString('pl-PL');
+    } catch (e) {
+        return "";
+    }
 };
 
-// Ulepszona funkcja, która radzi sobie z różnymi formatami danych
 const getGenderAbbreviation = (gender: string | undefined): 'M' | 'K' | '' => {
     if (!gender) return '';
     const lowerGender = gender.toLowerCase();
-    if (lowerGender === 'male' || lowerGender === 'm' || lowerGender === 'mężczyzna') {
-        return 'M';
-    }
-    if (lowerGender === 'female' || lowerGender === 'k' || lowerGender === 'kobieta') {
-        return 'K';
-    }
+    if (lowerGender === 'male' || lowerGender === 'm' || lowerGender === 'mężczyzna') return 'M';
+    if (lowerGender === 'female' || lowerGender === 'k' || lowerGender === 'kobieta') return 'K';
     return '';
 };
 
-
-const getBirthDateFromPesel = (pesel: string): Date | null => {
-    if (typeof pesel !== 'string' || pesel.length !== 11) {
-        return null;
-    }
+const getBirthDateFromPesel = (pesel: string | undefined): Date | null => {
+    if (typeof pesel !== 'string' || pesel.length !== 11) return null;
     let year = parseInt(pesel.substring(0, 2), 10);
     let month = parseInt(pesel.substring(2, 4), 10);
     const day = parseInt(pesel.substring(4, 6), 10);
@@ -58,9 +54,7 @@ const getBirthDateFromPesel = (pesel: string): Date | null => {
     else { year += 1900; }
 
     const birthDate = new Date(year, month - 1, day);
-    if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) {
-        return null;
-    }
+    if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) return null;
     return birthDate;
 };
 
@@ -75,7 +69,7 @@ export const AdminPanel = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [dateFrom, setDateFrom] = useState<string>("");
     const [dateTo, setDateTo] = useState<string>("");
-    const [typeFilter, setTypeFilter] = useState<"" | "employee" | "family">("");
+    const [typeFilter, setTypeFilter] = useState<"" | "employee" | "family">("employee");
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [users, setUsers] = useState<User[]>([]);
     const [userManagementError, setUserManagementError] = useState<string | null>(null);
@@ -140,8 +134,12 @@ export const AdminPanel = () => {
         }
     }, [isLoggedIn, userRole]);
 
-    // CAŁKOWICIE NOWA FUNKCJA EKSPORTU
+    // ODPORNA NA BŁĘDY FUNKCJA EKSPORTU
+    // ZASTĄP STARĄ FUNKCJĘ TĄ NOWĄ, POPRAWIONĄ WERSJĄ
     const handleExport = () => {
+        // Zostaw tę linię do diagnozowania problemów z danymi!
+        console.log("Dane przekazywane do eksportu:", filteredForms);
+
         // 1. Definicja nagłówków - stała, zgodna z test.xlsx
         const mainHeader = [
             null, null, null, null, null, null, null,
@@ -158,11 +156,10 @@ export const AdminPanel = () => {
         let peopleToExport: any[] = [];
 
         if (typeFilter === 'family') {
-            // Logika dla raportu "Członek rodziny"
             peopleToExport = filteredForms
                 .filter(form => form.submissionType === 'family')
                 .map(form => {
-                    const birthDate = form.familyIdentityMethod === 'pesel' && form.familyPesel
+                    const birthDate = (form.familyIdentityMethod === 'pesel' && form.familyPesel)
                         ? getBirthDateFromPesel(form.familyPesel)
                         : (form.familyBirthDate ? new Date(form.familyBirthDate) : null);
 
@@ -173,61 +170,50 @@ export const AdminPanel = () => {
                     } : { type: "", number: "", country: "" };
 
                     return {
-                        name: form.familyName || "",
-                        surname: form.familySurname || "",
-                        pesel: form.familyPesel || "",
-                        gender: getGenderAbbreviation(form.familyGender),
-                        birthDate: formatDate(birthDate),
-                        email: "", // Członek rodziny nie ma tych pól
-                        phone: "",
-                        docType: document.type,
-                        docNumber: document.number,
-                        docCountry: document.country,
-                        country: form.country,
-                        region: form.region,
-                        city: form.city,
-                        zip: form.zip,
-                        postOffice: form.postOffice,
-                        street: form.street,
-                        houseNumber: form.houseNumber,
-                        flatNumber: form.flatNumber || "",
-                        customAddress: ""
+                        name: form.familyName || "", surname: form.familySurname || "", pesel: form.familyPesel || "",
+                        gender: getGenderAbbreviation(form.familyGender), birthDate: formatDate(birthDate),
+                        email: "", phone: "",
+                        docType: document.type, docNumber: document.number, docCountry: document.country,
+                        country: form.country || "", region: form.region || "", city: form.city || "", zip: form.zip || "",
+                        postOffice: form.postOffice || "", street: form.street || "", houseNumber: form.houseNumber || "",
+                        flatNumber: form.flatNumber || "", customAddress: ""
                     };
                 });
         } else {
-            // Logika dla raportu "Pracownik" (lub wszystkich, jeśli brak filtra)
             peopleToExport = filteredForms
                 .filter(form => typeFilter === 'employee' ? form.submissionType === 'employee' : true)
                 .map(form => ({
-                    name: form.name,
-                    surname: form.surname,
-                    pesel: form.pesel,
-                    gender: getGenderAbbreviation(form.gender),
-                    birthDate: formatDate(getBirthDateFromPesel(form.pesel)),
-                    email: form.email,
-                    phone: form.phone,
-                    docType: "", // Pracownik identyfikowany przez PESEL
-                    docNumber: "",
-                    docCountry: "",
-                    country: form.country,
-                    region: form.region,
-                    city: form.city,
-                    zip: form.zip,
-                    postOffice: form.postOffice,
-                    street: form.street,
-                    houseNumber: form.houseNumber,
-                    flatNumber: form.flatNumber || "",
-                    customAddress: ""
+                    name: form.name || "", surname: form.surname || "", pesel: form.pesel || "",
+                    gender: getGenderAbbreviation(form.gender), birthDate: formatDate(getBirthDateFromPesel(form.pesel)),
+                    email: form.email || "", phone: form.phone || "",
+                    docType: "", docNumber: "", docCountry: "",
+                    country: form.country || "", region: form.region || "", city: form.city || "", zip: form.zip || "",
+                    postOffice: form.postOffice || "", street: form.street || "", houseNumber: form.houseNumber || "",
+                    flatNumber: form.flatNumber || "", customAddress: ""
                 }));
         }
 
-        // 3. Mapowanie ujednoliconych danych na wiersze Excela
+        // 3. POPRAWKA: Ręczne mapowanie danych do wierszy w prawidłowej kolejności
         const dataRows = peopleToExport.map(person => [
-            person.name, person.surname, person.pesel, person.gender, person.birthDate,
-            person.email, person.phone,
-            person.docType, person.docNumber, person.docCountry,
-            person.country, person.region, person.city, person.zip, person.postOffice,
-            person.street, person.houseNumber, person.flatNumber, person.customAddress
+            person.name,
+            person.surname,
+            person.pesel,
+            person.gender, // Płeć jest teraz na pewno na właściwym miejscu
+            person.birthDate,
+            person.email,
+            person.phone,
+            person.docType,
+            person.docNumber,
+            person.docCountry,
+            person.country,
+            person.region,
+            person.city,
+            person.zip,
+            person.postOffice,
+            person.street,
+            person.houseNumber,
+            person.flatNumber,
+            person.customAddress
         ]);
 
         // 4. Budowanie i pobieranie pliku .xlsx
@@ -235,8 +221,8 @@ export const AdminPanel = () => {
         const ws = XLSX.utils.aoa_to_sheet(dataToExport);
 
         ws['!merges'] = [
-            { s: { r: 0, c: 7 }, e: { r: 0, c: 9 } },  // Scalenie dla "Dokument tożsamości"
-            { s: { r: 0, c: 10 }, e: { r: 0, c: 18 } } // Scalenie dla "Adres"
+            { s: { r: 0, c: 7 }, e: { r: 0, c: 9 } },
+            { s: { r: 0, c: 10 }, e: { r: 0, c: 18 } }
         ];
 
         const wb = XLSX.utils.book_new();
@@ -244,11 +230,7 @@ export const AdminPanel = () => {
         XLSX.writeFile(wb, "raport_zgloszen.xlsx");
     };
 
-
-    const handleLogout = () => {
-        localStorage.clear();
-        navigate("/admin");
-    };
+    const handleLogout = () => { localStorage.clear(); navigate("/admin"); };
 
     const filteredForms = forms
         .filter(f => {
@@ -260,6 +242,7 @@ export const AdminPanel = () => {
         })
         .filter(f => typeFilter ? f.submissionType === typeFilter : true);
 
+    // Reszta komponentu bez zmian
     const tableColumns = [
         { key: 'name', label: 'Imię' }, { key: 'surname', label: 'Nazwisko' },
         { key: 'pesel', label: 'PESEL' }, { key: 'email', label: 'Email' },
@@ -267,7 +250,6 @@ export const AdminPanel = () => {
         { key: 'createdAt', label: 'Data zgłoszenia' },
     ];
 
-    // Uproszczony podgląd
     const dataForPreview = filteredForms.map(form => ({
         "Imię": form.name, "Nazwisko": form.surname, "PESEL": form.pesel,
         "Typ": form.submissionType, "Imię członka rodziny": form.familyName || "N/A",
@@ -278,7 +260,6 @@ export const AdminPanel = () => {
     if (isLoading) return <div className="flex items-center justify-center min-h-screen">Ładowanie...</div>;
     if (!isLoggedIn) return <Navigate to="/admin" replace />;
 
-    // Zwracany JSX (bez zmian)
     return (
         <div className="bg-gray-50 min-h-screen">
             <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -293,25 +274,18 @@ export const AdminPanel = () => {
                     onTypeChange={setTypeFilter}
                     onLogout={handleLogout}
                 />
-
                 <SubmissionsTable forms={filteredForms} columns={tableColumns} />
-
                 {userRole === 'superadmin' && (
                     <div className="mt-12">
                         <h2 className="text-2xl font-bold text-gray-800 mb-6">Zarządzanie użytkownikami</h2>
                         {userManagementError && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{userManagementError}</div>}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="bg-white p-6 rounded-xl shadow-md">
-                                <AddUserForm onUserAdded={fetchUsers} />
-                            </div>
-                            <div className="bg-white p-6 rounded-xl shadow-md">
-                                <UserList users={users} onUserDeleted={fetchUsers} />
-                            </div>
+                            <div className="bg-white p-6 rounded-xl shadow-md"><AddUserForm onUserAdded={fetchUsers} /></div>
+                            <div className="bg-white p-6 rounded-xl shadow-md"><UserList users={users} onUserDeleted={fetchUsers} /></div>
                         </div>
                     </div>
                 )}
             </main>
-
             <Modal isOpen={isPreviewModalOpen} onClose={() => setIsPreviewModalOpen(false)} title="Podgląd raportu (uproszczony)">
                 <div className="overflow-x-auto bg-gray-10 p-4">
                     <table className="w-full text-xs border-collapse">

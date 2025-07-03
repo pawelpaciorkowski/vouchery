@@ -81,7 +81,6 @@ export const DashboardActions: React.FC<DashboardActionsProps> = ({
                             onChange={e => onTypeChange(e.target.value as any)}
                             className="border border-gray-300 px-3 py-1.5 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                         >
-                            <option value="">Wszystkie</option>
                             <option value="employee">Pracownik</option>
                             <option value="family">Członek rodziny</option>
                         </select>
