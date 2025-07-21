@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Formik, Form, Field, ErrorMessage, useField } from "formik";
 import * as Yup from "yup";
 import Select from "react-select";
+import ReCAPTCHA from "react-google-recaptcha";
 
 type ModalProps = {
     isOpen: boolean;
@@ -42,6 +43,25 @@ const GENDERS = [
 const DOCUMENT_TYPES = [
     { value: "dowod", label: "Dowód osobisty" },
     { value: "paszport", label: "Paszport" },
+];
+
+const REGIONS = [
+    { value: "dolnośląskie", label: "Dolnośląskie" },
+    { value: "kujawsko-pomorskie", label: "Kujawsko-pomorskie" },
+    { value: "lubelskie", label: "Lubelskie" },
+    { value: "lubuskie", label: "Lubuskie" },
+    { value: "łódzkie", label: "Łódzkie" },
+    { value: "małopolskie", label: "Małopolskie" },
+    { value: "mazowieckie", label: "Mazowieckie" },
+    { value: "opolskie", label: "Opolskie" },
+    { value: "podkarpackie", label: "Podkarpackie" },
+    { value: "podlaskie", label: "Podlaskie" },
+    { value: "pomorskie", label: "Pomorskie" },
+    { value: "śląskie", label: "Śląskie" },
+    { value: "świętokrzyskie", label: "Świętokrzyskie" },
+    { value: "warmińsko-mazurskie", label: "Warmińsko-mazurskie" },
+    { value: "wielkopolskie", label: "Wielkopolskie" },
+    { value: "zachodniopomorskie", label: "Zachodniopomorskie" },
 ];
 
 const CapitalizedField = (props: any) => {
@@ -191,6 +211,7 @@ const baseValidation = {
     zgodaDanePrawdziwe: Yup.boolean().oneOf([true], "Zgoda jest wymagana"),
     zgodaPrzetwarzanie: Yup.boolean().oneOf([true], "Zgoda jest wymagana"),
     zgodaZapoznanie: Yup.boolean().oneOf([true], "Zgoda jest wymagana"),
+    recaptcha: Yup.string().required("Weryfikacja reCAPTCHA jest wymagana."),
 };
 
 const familyValidation = {
@@ -246,6 +267,7 @@ const initialValues = {
     zgodaDanePrawdziwe: false,
     zgodaPrzetwarzanie: false,
     zgodaZapoznanie: false,
+    recaptcha: "",
 };
 
 
@@ -254,8 +276,10 @@ export const AlabForm = () => {
     const [familyIdentityMethod, setFamilyIdentityMethod] = useState<"pesel" | "birthDoc">("pesel");
     const [areAllConsentsSelected, setAreAllConsentsSelected] = useState(false);
     const apiUrl = import.meta.env.VITE_API_URL;
+    const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState({ title: "", message: "" });
+    const recaptchaRef = useRef<ReCAPTCHA>(null);
 
 
     return (
@@ -271,7 +295,7 @@ export const AlabForm = () => {
                     onSubmit={async (values, { setSubmitting, resetForm }) => {
                         setSubmitting(true);
                         try {
-                            const response = await fetch(`${apiUrl}/api/forms`, {
+                            const response = await fetch(`${apiUrl}/forms`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -280,17 +304,23 @@ export const AlabForm = () => {
                             });
 
                             if (!response.ok) {
-                                throw new Error('Odpowiedź serwera nie była pomyślna.');
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || 'Odpowiedź serwera nie była pomyślna.');
                             }
 
                             setModalContent({ title: "Sukces!", message: "Formularz został pomyślnie wysłany." });
                             resetForm();
+                            if (recaptchaRef.current) {
+                                recaptchaRef.current.reset();
+                            }
+                            setAreAllConsentsSelected(false);
                             setType("employee");
                             setFamilyIdentityMethod("pesel");
 
                         } catch (error) {
                             console.error("Błąd podczas wysyłania formularza:", error);
-                            setModalContent({ title: "Błąd", message: "Wystąpił błąd podczas wysyłania formularza. Sprawdź konsolę serwera lub spróbuj ponownie." });
+                            const errorMessage = error instanceof Error ? error.message : "Wystąpił błąd podczas wysyłania formularza. Sprawdź konsolę serwera lub spróbuj ponownie.";
+                            setModalContent({ title: "Błąd", message: errorMessage });
                         } finally {
                             setSubmitting(false);
                             setIsModalOpen(true);
@@ -393,7 +423,12 @@ export const AlabForm = () => {
                                 </div>
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Województwo</label>
-                                    <Field name="region" className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm" />
+                                    <Select
+                                        options={REGIONS}
+                                        value={REGIONS.find(opt => opt.value === values.region)}
+                                        onChange={opt => setFieldValue("region", opt?.value)}
+                                        placeholder="Wybierz województwo"
+                                    />
                                     <ErrorMessage name="region" component="div" className="text-xs text-red-500 mt-1" />
                                 </div>
                                 <div className="mb-4">
@@ -457,6 +492,22 @@ export const AlabForm = () => {
                                     <ErrorMessage name="zgodaZapoznanie" component="div" className="text-xs text-red-500 ml-6" />
                                 </div>
                             </div>
+
+                            <div className="mt-6">
+                                {recaptchaSiteKey ? (
+                                    <ReCAPTCHA
+                                        ref={recaptchaRef}
+                                        sitekey={recaptchaSiteKey}
+                                        onChange={(token: any) => {
+                                            setFieldValue("recaptcha", token);
+                                        }}
+                                    />
+                                ) : (
+                                    <p className="text-red-500">Klucz reCAPTCHA nie jest skonfigurowany.</p>
+                                )}
+                                <ErrorMessage name="recaptcha" component="div" className="text-xs text-red-500 mt-1" />
+                            </div>
+
 
                             <button type="submit" className="w-full bg-blue-600 text-white py-3 mt-4 rounded-lg shadow font-semibold hover:bg-blue-700 transition">Wyślij</button>
                         </Form>

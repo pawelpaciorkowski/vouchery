@@ -1,4 +1,3 @@
-// Plik: src/components/SubmissionsTable.tsx
 
 import React from 'react';
 import { type FormData } from '../types';
@@ -8,7 +7,6 @@ type SubmissionsTableProps = {
     columns: { key: string; label: string }[];
 };
 
-// UPEWNIJ SIĘ, ŻE JEST TUTAJ SŁOWO "EXPORT"
 export const SubmissionsTable: React.FC<SubmissionsTableProps> = ({ forms, columns }) => {
     return (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">

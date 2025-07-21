@@ -13,8 +13,7 @@ const LoadingFallback = () => (
   </div>
 );
 
-// Sprawdzamy zmienną środowiskową, aby zdecydować, co renderować
-// To jest kluczowy fragment, który decyduje o trybie działania aplikacji
+
 const isPublicFormOnly = import.meta.env.VITE_APP_MODE === 'public';
 
 function App() {

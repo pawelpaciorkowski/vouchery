@@ -13,14 +13,14 @@ export const AdminLogin = () => {
         setError("");
 
         try {
-            const apiUrl = `${import.meta.env.VITE_API_URL}/api/login`;
+            const apiUrl = `${import.meta.env.VITE_API_URL}/login`;
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                // POPRAWKA TUTAJ: Wysyłamy obiekt z kluczem 'password', a nie 'password_hash'
+
                 body: JSON.stringify({ username, password }),
             });
 

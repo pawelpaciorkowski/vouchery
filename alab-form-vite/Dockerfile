@@ -1,12 +1,18 @@
 # Etap 1: Budowanie aplikacji React
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 WORKDIR /app
+
+# Deklaracja argumentów przekazywanych podczas budowania
+ARG VITE_API_URL
+ARG VITE_RECAPTCHA_SITE_KEY
+
+# Ustawienie zmiennych środowiskowych dla procesu budowania
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_RECAPTCHA_SITE_KEY=${VITE_RECAPTCHA_SITE_KEY}
+
 COPY package*.json ./
 RUN npm install
 COPY . .
-# Ustawienie adresu URL API podczas budowania
-ARG VITE_API_URL
-ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 # Etap 2: Serwowanie plików statycznych przez Nginx
